@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .auth-shell{
+    min-height:100vh;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  @media (max-width: 900px){ .auth-shell{grid-template-columns:1fr;} }
+
+  .auth-side{
+    position:relative;
+    padding:64px clamp(28px, 5vw, 64px);
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    background:
+      radial-gradient(ellipse 60% 50% at 30% 20%, rgba(242,169,59,0.10), transparent 60%),
+      var(--surface);
+    border-right:1px solid var(--hairline);
+    overflow:hidden;
+  }
+  @media (max-width: 900px){ .auth-side{display:none;} }
+  .auth-side-grid{
+    position:absolute; inset:0;
+    background-image:linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
+    background-size:56px 56px;
+    opacity:0.3;
+  }
+  .auth-side > *{position:relative; z-index:1;}
+  .auth-quote{
+    font-family:var(--display);
+    font-weight:800;
+    font-size:clamp(1.8rem, 3vw, 2.6rem);
+    text-transform:uppercase;
+    line-height:1.05;
+    max-width:420px;
+  }
+  .auth-quote .accent{color:var(--marigold);}
+  .auth-quote-sub{color:var(--text-mid); margin-top:20px; max-width:380px; font-size:0.98rem;}
+  .auth-stat-row{display:flex; gap:36px; margin-top:8px;}
+  .auth-stat b{
+    display:block;
+    font-family:var(--mono);
+    font-size:1.6rem;
+    color:var(--marigold);
+  }
+  .auth-stat span{font-size:0.76rem; color:var(--text-low); font-family:var(--mono); letter-spacing:0.05em;}
+
+  .auth-main{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:132px 24px 60px;
+  }
+  .auth-form-wrap{width:100%; max-width:420px;}
+  .auth-form-wrap .eyebrow{margin-bottom:14px;}
+  .auth-form-wrap h1{
+    font-family:var(--display);
+    font-weight:800;
+    font-size:2.2rem;
+    text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .auth-form-wrap > p{color:var(--text-mid); margin-bottom:30px; font-size:0.94rem;}
+
+  .tabs{display:flex; gap:8px; margin-bottom:30px;}
+  .tab-btn{
+    flex:1;
+    font-family:var(--mono);
+    font-size:0.82rem;
+    letter-spacing:0.04em;
+    padding:11px;
+    background:var(--surface-2);
+    border:1px solid var(--hairline);
+    color:var(--text-mid);
+    border-radius:2px;
+    cursor:pointer;
+    transition:background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .tab-btn.active{background:var(--marigold); color:var(--ink); border-color:var(--marigold);}
+
+  form{display:none;}
+  form.active{display:block;}
+
+  .conditional-field{display:none;}
+  .conditional-field.show{display:block;}
+
+  .auth-foot-note{
+    text-align:center;
+    margin-top:22px;
+    font-size:0.85rem;
+    color:var(--text-low);
+  }
+  .auth-foot-note a{color:var(--marigold); text-decoration:none;}
+  .auth-foot-note a:hover{text-decoration:underline;}
+
+  .back-home{
+    position:fixed; top:52px; left:clamp(20px,5vw,56px); z-index:50;
+    font-family:var(--mono); font-size:0.78rem; color:var(--text-low); text-decoration:none;
+    display:flex; align-items:center; gap:8px;
+  }
+  .back-home:hover{color:var(--marigold);}
+  .back-home img{height:28px; width:auto;}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <span>Text size</span>
+      <button type="button" id="fontDec" class="font-ctrl" aria-label="Decrease text size">A−</button>
+      <button type="button" id="fontReset" class="font-ctrl" aria-label="Reset text size">A</button>
+      <button type="button" id="fontInc" class="font-ctrl" aria-label="Increase text size">A+</button>
+      <span class="divider" aria-hidden="true">|</span>
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<a href="index.html" class="back-home"><img src="img/emblem.png" alt="" aria-hidden="true">← CivicPulse</a>
+
+<div class="auth-shell">
+  <aside class="auth-side">
+    <div class="auth-side-grid" aria-hidden="true"></div>
+    <div>
+      <p class="eyebrow" style="margin-bottom:40px;">Citizen access</p>
+      <p class="auth-quote">Your complaint<br>shouldn't need<br><span class="accent">a follow-up call.</span></p>
+      <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="auth-quote-sub">Sign in to file a new grievance, track existing ones by docket number, and get policy recommendations relevant to you.</p>
+    </div>
+    <div class="auth-stat-row">
+      <div class="auth-stat"><b>&lt;30s</b><span>TO ROUTE</span></div>
+      <div class="auth-stat"><b>12+</b><span>LANGUAGES</span></div>
+      <div class="auth-stat"><b>24/7</b><span>WHATSAPP</span></div>
+    </div>
+  </aside>
+
+  <main class="auth-main" id="main">
+    <div class="auth-form-wrap">
+      <p class="eyebrow">Api /api/auth/</p>
+      <h1 id="authHeading">Welcome back</h1>
+      <p id="authSub">Log in to check your complaint status or file a new one.</p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" id="tabLogin" role="tab" aria-selected="true">Log in</button>
+        <button class="tab-btn" id="tabRegister" role="tab" aria-selected="false">Register</button>
+      </div>
+
+      <!-- LOGIN -->
+      <form id="loginForm" class="active" novalidate>
+        <div class="field">
+          <label for="li-email">Email</label>
+          <input class="input" type="email" id="li-email" required placeholder="you@example.com">
+          <p class="error-msg">Enter a valid email address.</p>
+        </div>
+        <div class="field">
+          <label for="li-pass">Password</label>
+          <input class="input" type="password" id="li-pass" required placeholder="••••••••" minlength="6">
+          <p class="error-msg">Password must be at least 6 characters.</p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Log in</button>
+      </form>
+
+      <!-- REGISTER -->
+      <form id="registerForm" novalidate>
+        <div class="field">
+          <label for="re-name">Full name</label>
+          <input class="input" type="text" id="re-name" required placeholder="As per your ID">
+          <p class="error-msg">Please enter your full name.</p>
+        </div>
+        <div class="field">
+          <label for="re-email">Email</label>
+          <input class="input" type="email" id="re-email" required placeholder="you@example.com">
+          <p class="error-msg">Enter a valid email address.</p>
+        </div>
+        <div class="field">
+          <label for="re-pass">Password</label>
+          <input class="input" type="password" id="re-pass" required minlength="6" placeholder="At least 6 characters">
+          <p class="error-msg">Password must be at least 6 characters.</p>
+        </div>
+        <div class="field">
+          <label for="re-region">Region</label>
+          <input class="input" type="text" id="re-region" required placeholder="District / City, State">
+          <p class="error-msg">Region is required so we can route your complaints.</p>
+        </div>
+        <div class="field">
+          <label for="re-edu">Highest education</label>
+          <select class="select" id="re-edu" required>
+            <option value="" disabled selected>Select one</option>
+            <option>Below 10th</option>
+            <option>10th pass</option>
+            <option>12th pass</option>
+            <option>Diploma</option>
+            <option>Undergraduate</option>
+            <option>Postgraduate &amp; above</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Currently employed?</label>
+          <div class="pill-toggle" id="employToggle">
+            <button type="button" class="active" data-val="true">Yes</button>
+            <button type="button" data-val="false">No</button>
+          </div>
+        </div>
+        <div class="field conditional-field show" id="occupationField">
+          <label for="re-occ">Current occupation</label>
+          <input class="input" type="text" id="re-occ" placeholder="e.g. Auto driver, Teacher, Shopkeeper">
+        </div>
+        <div class="field">
+          <label for="re-lang">Preferred language</label>
+          <select class="select" id="re-lang" required>
+            <option value="English">English</option>
+            <option value="Hindi">हिंदी — Hindi</option>
+            <option value="Tamil">தமிழ் — Tamil</option>
+            <option value="Telugu">తెలుగు — Telugu</option>
+            <option value="Kannada">ಕನ್ನಡ — Kannada</option>
+            <option value="Malayalam">മലയാളം — Malayalam</option>
+            <option value="Bengali">বাংলা — Bengali</option>
+            <option value="Marathi">मराठी — Marathi</option>
+            <option value="Gujarati">ગુજરાતી — Gujarati</option>
+            <option value="Punjabi">ਪੰਜਾਬੀ — Punjabi</option>
+            <option value="Urdu">اردو — Urdu</option>
+          </select>
+          <p class="hint">Used to pre-fill the complaint form and for status updates once the WhatsApp bot is wired in. You can change this later from your account page.</p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Create account</button>
+      </form>
+
+      <p class="auth-foot-note" id="switchNote">New here? <a href="#" id="goRegister">Register instead</a></p>
+      <p class="auth-foot-note">Just tracking a complaint? <a href="track.html">Look it up without an account →</a></p>
+    </div>
+  </main>
+</div>
+
+<script src="main.js"></script>
+<script>
+  const tabLogin = document.getElementById('tabLogin');
+  const tabRegister = document.getElementById('tabRegister');
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const authHeading = document.getElementById('authHeading');
+  const authSub = document.getElementById('authSub');
+  const switchNote = document.getElementById('switchNote');
+
+  function showLogin(){
+    tabLogin.classList.add('active'); tabLogin.setAttribute('aria-selected','true');
+    tabRegister.classList.remove('active'); tabRegister.setAttribute('aria-selected','false');
+    loginForm.classList.add('active'); registerForm.classList.remove('active');
+    authHeading.textContent = 'Welcome back';
+    authSub.textContent = 'Log in to check your complaint status or file a new one.';
+    switchNote.innerHTML = 'New here? <a href="#" id="goRegister">Register instead</a>';
+    document.getElementById('goRegister').addEventListener('click', (e)=>{ e.preventDefault(); showRegister(); });
+  }
+  function showRegister(){
+    tabRegister.classList.add('active'); tabRegister.setAttribute('aria-selected','true');
+    tabLogin.classList.remove('active'); tabLogin.setAttribute('aria-selected','false');
+    registerForm.classList.add('active'); loginForm.classList.remove('active');
+    authHeading.textContent = 'Create your account';
+    authSub.textContent = 'Takes under a minute. You\'ll need this to track any complaint you file.';
+    switchNote.innerHTML = 'Already registered? <a href="#" id="goLogin">Log in instead</a>';
+    document.getElementById('goLogin').addEventListener('click', (e)=>{ e.preventDefault(); showLogin(); });
+  }
+  tabLogin.addEventListener('click', showLogin);
+  tabRegister.addEventListener('click', showRegister);
+  document.getElementById('goRegister').addEventListener('click', (e)=>{ e.preventDefault(); showRegister(); });
+
+  // employment toggle
+  const employToggle = document.getElementById('employToggle');
+  const occupationField = document.getElementById('occupationField');
+  employToggle.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      employToggle.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      occupationField.classList.toggle('show', btn.dataset.val === 'true');
+    });
+  });
+
+  // basic validation + fake submit (backend team wires POST /api/auth/ here)
+  function validateForm(form){
+    let valid = true;
+    form.querySelectorAll('[required]').forEach(input=>{
+      const errEl = input.closest('.field')?.querySelector('.error-msg');
+      const ok = input.checkValidity() && input.value.trim() !== '';
+      if(!ok){
+        input.classList.add('field-error');
+        if(errEl) errEl.classList.add('show');
+        valid = false;
+      } else {
+        input.classList.remove('field-error');
+        if(errEl) errEl.classList.remove('show');
+      }
+    });
+    return valid;
+  }
+
+  loginForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    if(!validateForm(loginForm)) return;
+    // TODO(backend): POST /api/auth/  { email, password }
+    // Client-only stand-in: keep whatever profile is already stored for this device,
+    // just make sure the email on file matches what was typed at login.
+    saveAccount({ email: document.getElementById('li-email').value.trim() });
+    showToast('Logged in — redirecting to dashboard…');
+    setTimeout(()=> window.location.href = 'dashboard.html', 900);
+  });
+
+  registerForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    if(!validateForm(registerForm)) return;
+    // TODO(backend): POST /api/auth/  { name, email, password, region, employment_status, education, current_occupation, language }
+    saveAccount({
+      name: document.getElementById('re-name').value.trim(),
+      email: document.getElementById('re-email').value.trim(),
+      region: document.getElementById('re-region').value.trim(),
+      education: document.getElementById('re-edu').value,
+      employed: employToggle.querySelector('button.active').dataset.val === 'true',
+      occupation: document.getElementById('re-occ').value.trim(),
+      language: document.getElementById('re-lang').value,
+    });
+    showToast('Account created — redirecting to dashboard…');
+    setTimeout(()=> window.location.href = 'dashboard.html', 900);
+  });
+</script>
+</body>
+</html>

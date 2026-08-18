@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Priority queue — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .track-hero{
+    padding:20px 0 10px;
+    text-align:center;
+  }
+  .track-hero .eyebrow{justify-content:center; margin-bottom:16px;}
+  .track-hero h1{
+    font-family:var(--display); font-weight:800;
+    font-size:clamp(1.9rem, 4vw, 2.7rem);
+    text-transform:none;
+  }
+  .track-hero p{color:var(--text-mid); max-width:560px; margin:14px auto 0;}
+
+  .search-bar{
+    max-width:520px;
+    margin:34px auto 0;
+    display:flex;
+    gap:10px;
+  }
+  .search-bar .input{
+    text-align:center;
+    font-family:var(--mono);
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+  .search-hint{
+    text-align:center;
+    margin-top:12px;
+    font-size:0.8rem;
+    color:var(--text-low);
+    font-family:var(--mono);
+  }
+  .search-hint button{
+    background:none; border:none; color:var(--navy); cursor:pointer;
+    font-family:var(--mono); font-size:0.8rem; text-decoration:underline; padding:0;
+  }
+
+  .search-divider{
+    display:flex; align-items:center; gap:14px;
+    max-width:520px; margin:26px auto;
+    font-family:var(--mono); font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--text-low);
+  }
+  .search-divider::before, .search-divider::after{
+    content:""; flex:1; height:1px; background:var(--hairline-dark);
+  }
+
+  .search-bar--nlp{max-width:560px;}
+  .search-bar--nlp .input{
+    text-align:left; text-transform:none; letter-spacing:normal;
+    font-family:var(--body);
+  }
+
+  .qi-tag.match{
+    color:var(--saffron-dim); border-color:var(--saffron-dim); font-weight:700;
+  }
+
+  /* ---------- TOOLBAR ---------- */
+  .queue-toolbar{
+    display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+    margin:52px 0 20px;
+    padding-bottom:16px;
+    border-bottom:2px solid var(--ink);
+  }
+  .queue-toolbar .tb-field{display:flex; flex-direction:column; gap:5px;}
+  .queue-toolbar label{
+    font-family:var(--body); font-size:0.76rem; font-weight:700; color:var(--text-mid);
+  }
+  .queue-toolbar select{
+    background:var(--white); border:2px solid var(--hairline-dark); border-radius:2px;
+    padding:8px 30px 8px 10px; font-family:var(--body); font-size:0.86rem; color:var(--ink);
+    appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231A1A1A' stroke-width='1.8' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 10px center;
+  }
+  .queue-toolbar select:focus{outline:none; border-color:var(--navy);}
+  .queue-count{margin-left:auto; font-family:var(--mono); font-size:0.8rem; color:var(--text-mid);}
+  .clear-filter{
+    font-family:var(--mono); font-size:0.78rem; color:var(--navy); background:none; border:none;
+    text-decoration:underline; cursor:pointer; padding:0;
+  }
+
+  /* ---------- QUEUE LIST ---------- */
+  .queue-list{display:flex; flex-direction:column; gap:12px; margin-bottom:60px;}
+  .queue-item{
+    background:var(--white);
+    border:2px solid var(--ink);
+    border-left-width:8px;
+    border-radius:2px;
+  }
+  .queue-item[data-priority="urgent"]{border-left-color:var(--red);}
+  .queue-item[data-priority="high"]{border-left-color:var(--saffron-dim);}
+  .queue-item[data-priority="medium"]{border-left-color:var(--navy);}
+  .queue-item[data-priority="low"]{border-left-color:var(--hairline-dark);}
+  .queue-item.highlight{box-shadow:0 0 0 3px rgba(11,47,143,0.28);}
+
+  .queue-item summary{
+    list-style:none;
+    cursor:pointer;
+    padding:16px 20px;
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    gap:10px 18px;
+    align-items:center;
+  }
+  .queue-item summary::-webkit-details-marker{display:none;}
+  .qi-priority{
+    font-family:var(--mono); font-size:0.72rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+    padding:5px 10px; border:2px solid currentColor; border-radius:2px; white-space:nowrap;
+  }
+  .qi-priority[data-priority="urgent"]{color:var(--red);}
+  .qi-priority[data-priority="high"]{color:var(--saffron-dim);}
+  .qi-priority[data-priority="medium"]{color:var(--navy);}
+  .qi-priority[data-priority="low"]{color:var(--text-low);}
+  .qi-main{min-width:0;}
+  .qi-id-row{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  .qi-id{font-family:var(--mono); font-size:0.76rem; color:var(--text-low);}
+  .qi-title{font-family:var(--display); font-weight:700; font-size:1.06rem; margin-top:3px;}
+  .qi-tags{display:flex; flex-wrap:wrap; gap:8px; margin-top:9px;}
+  .qi-tag{
+    font-family:var(--mono); font-size:0.7rem; letter-spacing:0.03em;
+    padding:3px 9px; border:1px solid var(--hairline-dark); border-radius:2px; color:var(--text-mid);
+    white-space:nowrap;
+  }
+  .qi-tag.lang{color:var(--navy); border-color:var(--navy);}
+  .qi-right{display:flex; flex-direction:column; align-items:flex-end; gap:6px; text-align:right;}
+  .qi-date{font-family:var(--mono); font-size:0.74rem; color:var(--text-low);}
+  @media (max-width:640px){
+    .queue-item summary{grid-template-columns:1fr; }
+    .qi-right{align-items:flex-start; text-align:left; flex-direction:row; gap:10px;}
+  }
+
+  .qi-detail{padding:0 20px 22px; border-top:1px solid var(--hairline);}
+  .qi-detail-inner{padding-top:20px;}
+
+  .result-meta{
+    display:flex; gap:22px; flex-wrap:wrap; margin:4px 0 26px;
+    font-family:var(--mono); font-size:0.82rem; color:var(--text-mid);
+  }
+  .result-meta b{color:var(--text-hi); font-weight:600;}
+
+  /* status timeline */
+  .status-rail{position:relative; display:flex; justify-content:space-between; margin:0 8px 30px;}
+  .status-rail::before{content:""; position:absolute; top:17px; left:0; right:0; height:2px; background:var(--hairline); z-index:0;}
+  .status-rail .fill{position:absolute; top:17px; left:0; height:2px; background:var(--navy); z-index:1; transition:width 0.4s ease;}
+  .status-node{position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; flex:1;}
+  .status-node .dot{
+    width:32px; height:32px; border-radius:50%;
+    background:var(--surface); border:2px solid var(--hairline);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:0.76rem; color:var(--text-low);
+  }
+  .status-node.done .dot{border-color:var(--navy); color:var(--navy); background:var(--surface-2);}
+  .status-node.current .dot{border-color:var(--navy); color:var(--white); background:var(--navy);}
+  .status-node .lbl{margin-top:8px; font-family:var(--mono); font-size:0.66rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-low); text-align:center;}
+  .status-node.done .lbl, .status-node.current .lbl{color:var(--text-hi);}
+
+  .result-body{
+    background:var(--surface-2); border:1px solid var(--hairline); border-radius:2px;
+    padding:18px 20px; font-size:0.9rem; color:var(--text-mid); margin-bottom:20px;
+  }
+  .result-body span{display:block; font-family:var(--mono); font-size:0.68rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-low); margin-bottom:8px;}
+
+  .result-note{
+    display:flex; gap:12px; align-items:flex-start;
+    padding:14px 16px; border-left:3px solid var(--green); background:rgba(15,122,31,0.06);
+    font-size:0.85rem; color:var(--text-mid);
+  }
+  .result-note b{color:var(--text-hi);}
+
+  .not-found{
+    max-width:480px; margin:56px auto 0; text-align:center;
+    padding:40px 20px; border:1px dashed var(--hairline); border-radius:2px; display:none;
+  }
+  .not-found.show{display:block;}
+  .not-found .stamp{margin-bottom:16px;}
+  .not-found h3{font-family:var(--display); font-weight:700; font-size:1.3rem; text-transform:none; margin-bottom:8px;}
+  .not-found p{color:var(--text-mid); font-size:0.9rem;}
+
+  .empty-queue{padding:40px 20px; text-align:center; color:var(--text-mid); font-size:0.92rem; border:1px dashed var(--hairline);}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <span>Text size</span>
+      <button type="button" id="fontDec" class="font-ctrl" aria-label="Decrease text size">A−</button>
+      <button type="button" id="fontReset" class="font-ctrl" aria-label="Reset text size">A</button>
+      <button type="button" id="fontInc" class="font-ctrl" aria-label="Increase text size">A+</button>
+      <span class="divider" aria-hidden="true">|</span>
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="complaint.html">File complaint</a></li>
+      <li><a href="track.html" class="active">Priority queue</a></li>
+    </ul>
+    <a href="account.html" class="nav-user">
+      <div class="nav-avatar">A</div>
+      <span>Anon Citizen</span>
+    </a>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap">
+
+    <div class="track-hero reveal">
+      <p class="eyebrow">NLP-ranked · Api /api/admin/view/complaint/&lt;complaintID&gt;</p>
+      <h1>Complaint priority queue</h1>
+      <div class="tri-underline" aria-hidden="true" style="margin-left:auto; margin-right:auto;"><span></span><span></span><span></span></div>
+      <p>Every filed complaint is scored by an NLP model on urgency, category and department fit, then ranked here. Look up a specific docket, or browse the live queue below.</p>
+
+      <form class="search-bar" id="trackForm">
+        <input class="input" type="text" id="trackInput" placeholder="e.g. CP-4821" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Look up</button>
+      </form>
+      <p class="search-hint">Don't have one? <button type="button" id="tryDemo">Try a sample docket</button></p>
+
+      <div class="search-divider" aria-hidden="true"><span>or</span></div>
+
+      <form class="search-bar search-bar--nlp" id="nlpForm">
+        <input class="input" type="text" id="nlpInput" placeholder="Describe the issue — e.g. “streetlight near Anna Nagar”" autocomplete="off">
+        <button type="submit" class="btn btn-ghost">Search</button>
+      </form>
+      <p class="search-hint">Matched by the same NLP model that ranks the queue below — no docket number needed.</p>
+    </div>
+
+    <!-- NOT FOUND -->
+    <section class="not-found reveal" id="notFound">
+      <span class="stamp stamp-urgent">Not found</span>
+      <h3>No docket matches that number</h3>
+      <p>Double-check the ID from your confirmation message, or <a href="complaint.html" style="color:var(--navy);">file a new complaint</a>.</p>
+    </section>
+
+    <div class="queue-toolbar reveal" id="queueToolbar">
+      <div class="tb-field">
+        <label for="sortSelect">Sort by</label>
+        <select id="sortSelect">
+          <option value="priority-desc">Priority (high → low)</option>
+          <option value="newest">Newest filed</option>
+          <option value="oldest">Oldest filed</option>
+        </select>
+      </div>
+      <div class="tb-field">
+        <label for="categorySelect">Category</label>
+        <select id="categorySelect">
+          <option value="all">All categories</option>
+        </select>
+      </div>
+      <div class="tb-field">
+        <label for="statusSelect">Status</label>
+        <select id="statusSelect">
+          <option value="all">All statuses</option>
+          <option value="received">Received</option>
+          <option value="processing">AI triage</option>
+          <option value="assigned">Assigned</option>
+          <option value="resolved">Resolved</option>
+        </select>
+      </div>
+      <button type="button" class="clear-filter" id="clearFilter" style="display:none;">Clear docket filter ✕</button>
+      <span class="queue-count" id="queueCount">— dockets</span>
+    </div>
+
+    <div class="queue-list" id="queueList"></div>
+
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  // TODO(backend): replace with GET /api/admin/view/complaint/<complaintID> for single lookup,
+  // a new queue endpoint for the ranked list — GET /api/admin/queue?sort=priority&category=&status=
+  // returning items shaped like `mockDockets` below (priority/category/department/language from the
+  // NLP model's output) — and a free-text endpoint for the description search box, something like
+  // GET /api/citizen/search?q=<text> returning docket IDs ranked by the model's semantic similarity
+  // score. scoreDockets() below is a keyword-overlap stand-in for that ranking.
+  const mockDockets = {
+    'CP-5102': {
+      title:'Open manhole near school gate, Anna Nagar',
+      category:'Public Safety', department:'Municipal Corporation — Public Safety Cell',
+      language:'Tamil', languageNative:'தமிழ்',
+      priority:96, filed:'2026-08-17', filedDisplay:'17 Aug 2026', files:3,
+      authority:'Municipal Corporation Services', stage:'processing',
+      body:'Uncovered manhole directly outside a primary school gate, first reported this morning. High foot traffic of children before 8am.',
+      note:'Flagged Urgent by the model due to child-safety keywords and proximity to a school. Escalated directly to the Public Safety Cell.'
+    },
+    'CP-5099': {
+      title:'Transformer sparking after rain, Sector 12',
+      category:'Electricity', department:'Electricity Board',
+      language:'Hindi', languageNative:'हिंदी',
+      priority:91, filed:'2026-08-16', filedDisplay:'16 Aug 2026', files:2,
+      authority:'Electricity Board', stage:'assigned',
+      body:'Visible sparking from a pole-mounted transformer since last night\'s rain. Residents have been asked to stay clear of the area.',
+      note:'Assigned to an Electricity Board field engineer. Ranked Urgent on fire/electrocution risk terms detected in the complaint text.'
+    },
+    'CP-4821': {
+      title:'Streetlight not working on 4th Cross Road',
+      category:'Street Lighting', department:'Ward Office',
+      language:'English', languageNative:'English',
+      priority:58, filed:'2026-08-12', filedDisplay:'12 Aug 2026', files:2,
+      authority:'Municipal Corporation Services', stage:'processing',
+      body:'Streetlight pole #14 on 4th Cross Road has been dark for over a week. Area is unsafe for pedestrians after 7pm.',
+      note:'Classified as a duplicate cluster with 6 similar reports and routed to the Ward Office. Expect an update within 48 hours.'
+    },
+    'CP-5087': {
+      title:'Sewage overflow onto main road, Kumaran Street',
+      category:'Drainage & Sewage', department:'Drainage & Sewage Board',
+      language:'Tamil', languageNative:'தமிழ்',
+      priority:83, filed:'2026-08-15', filedDisplay:'15 Aug 2026', files:4,
+      authority:'Drainage & Sewage Board', stage:'received',
+      body:'Sewage line overflow has been flowing onto the main carriageway for two days, causing a strong odour and health concerns.',
+      note:'Queued for AI triage — high priority pre-score due to public-health terms; awaiting confirmation from the model.'
+    },
+    'CP-4790': {
+      title:'Garbage not collected for 6 days, Ward 14',
+      category:'Sanitation & Waste', department:'Ward / Panchayat Office',
+      language:'English', languageNative:'English',
+      priority:47, filed:'2026-08-09', filedDisplay:'09 Aug 2026', files:3,
+      authority:'Ward / Panchayat Office', stage:'received',
+      body:'Household waste has piled up on the corner of Ward 14 since last Tuesday. Attracting stray animals.',
+      note:'In the queue for AI triage. This usually takes under a minute — check back shortly.'
+    },
+    'CP-5061': {
+      title:'Pothole cluster causing two-wheeler accidents',
+      category:'Roads & Potholes', department:'PWD (Roads)',
+      language:'Kannada', languageNative:'ಕನ್ನಡ',
+      priority:72, filed:'2026-08-14', filedDisplay:'14 Aug 2026', files:5,
+      authority:'PWD (Roads)', stage:'assigned',
+      body:'A cluster of deep potholes near the flyover entrance has caused at least two reported two-wheeler falls this week.',
+      note:'Ranked High on injury-risk and repeat-mention signals; assigned to PWD for inspection within 5 working days.'
+    },
+    'CP-5040': {
+      title:'Encroachment blocking footpath, MG Road',
+      category:'Encroachment', department:'Town Planning (Encroachment)',
+      language:'Telugu', languageNative:'తెలుగు',
+      priority:34, filed:'2026-08-11', filedDisplay:'11 Aug 2026', files:1,
+      authority:'Town Planning (Encroachment)', stage:'received',
+      body:'A vendor stall has expanded onto the footpath, forcing pedestrians onto the road.',
+      note:'Ranked Low relative to the current queue — no immediate safety signal detected — but retained for routing.'
+    },
+    'CP-4602': {
+      title:'Water supply pipeline leak near bus stand',
+      category:'Water Supply', department:'Public Sector Utility (Water Works)',
+      language:'English', languageNative:'English',
+      priority:64, filed:'2026-07-27', filedDisplay:'27 Jul 2026', files:1,
+      authority:'Public Sector Utility', stage:'resolved',
+      body:'Visible leak from the main pipeline opposite the bus stand, wasting water and flooding the walkway.',
+      note:'Marked resolved by the Public Works Engineer on 3 Aug 2026. Reopen this docket if the issue recurs.'
+    },
+    'CP-5011': {
+      title:'Streetlight flickering, minor — Gandhi Nagar',
+      category:'Street Lighting', department:'Ward Office',
+      language:'Bengali', languageNative:'বাংলা',
+      priority:21, filed:'2026-08-08', filedDisplay:'08 Aug 2026', files:0,
+      authority:'Municipal Corporation Services', stage:'resolved',
+      body:'One streetlight flickers intermittently but still functions. Low urgency, filed for the record.',
+      note:'Resolved — bulb replaced during routine ward maintenance on 10 Aug 2026.'
+    }
+  };
+
+  const stageOrder = ['received','processing','assigned','resolved'];
+  const stampFor = { received:'stamp-received', processing:'stamp-processing', assigned:'stamp-processing', resolved:'stamp-resolved' };
+  const labelFor = { received:'Received', processing:'AI triage', assigned:'Assigned', resolved:'Resolved' };
+
+  function priorityBand(score){
+    if(score >= 85) return 'urgent';
+    if(score >= 65) return 'high';
+    if(score >= 40) return 'medium';
+    return 'low';
+  }
+  function priorityLabel(band){
+    return { urgent:'Urgent', high:'High', medium:'Medium', low:'Low' }[band];
+  }
+
+  // ---- free-text ("NLP") search stand-in ----
+  // Real thing runs through the model's embeddings; this is just keyword overlap
+  // so the prototype behaves sensibly until that endpoint exists.
+  const STOPWORDS = new Set(['the','a','an','is','are','was','were','in','on','at','near','not',
+    'for','and','of','to','my','our','it','this','that','with','from','has','have','been',
+    'there','still','again','since','me','please','i','we','issue','problem']);
+
+  function scoreDockets(query){
+    const terms = [...new Set(
+      query.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOPWORDS.has(t))
+    )];
+    const scores = new Map();
+    Object.entries(mockDockets).forEach(([id, d])=>{
+      const titleText = d.title.toLowerCase();
+      const wideText = `${d.body} ${d.category} ${d.department} ${d.authority}`.toLowerCase();
+      let score = 0;
+      terms.forEach(t=>{
+        if(titleText.includes(t)) score += 3;
+        else if(wideText.includes(t)) score += 1;
+      });
+      scores.set(id, score);
+    });
+    return scores;
+  }
+
+  // populate category filter from the data itself, so it never drifts out of sync
+  const categorySelect = document.getElementById('categorySelect');
+  const categories = [...new Set(Object.values(mockDockets).map(d => d.category))].sort();
+  categories.forEach(cat=>{
+    const opt = document.createElement('option');
+    opt.value = cat; opt.textContent = cat;
+    categorySelect.appendChild(opt);
+  });
+
+  const queueList = document.getElementById('queueList');
+  const queueCount = document.getElementById('queueCount');
+  const sortSelect = document.getElementById('sortSelect');
+  const statusSelect = document.getElementById('statusSelect');
+  const clearFilterBtn = document.getElementById('clearFilter');
+
+  let dockedFilterId = null; // when set (via search/deep-link), queue shows just this one
+  let nlpFilter = null;      // when set (via description search), queue shows keyword-ranked matches
+
+  function buildDetail(id, d){
+    const idx = stageOrder.indexOf(d.stage);
+    const fillPct = (idx / (stageOrder.length - 1)) * 100;
+    const nodesHtml = stageOrder.map((stage, i)=>{
+      const cls = i < idx ? 'done' : (i === idx ? 'current' : '');
+      const num = String(i+1).padStart(2,'0');
+      const stageLabel = stage === 'processing' ? 'AI triage' : (stage.charAt(0).toUpperCase()+stage.slice(1));
+      return `<div class="status-node ${cls}"><div class="dot">${num}</div><div class="lbl">${stageLabel}</div></div>`;
+    }).join('');
+
+    return `
+      <div class="qi-detail-inner">
+        <div class="result-meta">
+          <span>Filed <b>${d.filedDisplay}</b></span>
+          <span>Authority <b>${d.authority}</b></span>
+          <span>Proof files <b>${d.files}</b></span>
+          <span>AI priority score <b>${d.priority}/100</b></span>
+        </div>
+        <div class="status-rail">
+          <div class="fill" style="width:${fillPct}%"></div>
+          ${nodesHtml}
+        </div>
+        <div class="result-body">
+          <span>Complaint details</span>
+          <p>${d.body}</p>
+        </div>
+        <div class="result-note">
+          <span>💬</span>
+          <p><b>Next update:</b> ${d.note}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderQueue(){
+    const sort = sortSelect.value;
+    const category = categorySelect.value;
+    const status = statusSelect.value;
+
+    let entries = Object.entries(mockDockets);
+    let matchScores = null;
+
+    if(dockedFilterId){
+      entries = entries.filter(([id]) => id === dockedFilterId);
+    } else if(nlpFilter){
+      matchScores = scoreDockets(nlpFilter);
+      entries = entries.filter(([id]) => matchScores.get(id) > 0);
+      if(category !== 'all') entries = entries.filter(([,d]) => d.category === category);
+      if(status !== 'all') entries = entries.filter(([,d]) => d.stage === status);
+    } else {
+      if(category !== 'all') entries = entries.filter(([,d]) => d.category === category);
+      if(status !== 'all') entries = entries.filter(([,d]) => d.stage === status);
+    }
+
+    entries.sort((a,b)=>{
+      if(matchScores){
+        const diff = matchScores.get(b[0]) - matchScores.get(a[0]);
+        if(diff !== 0) return diff;
+      }
+      if(sort === 'priority-desc') return b[1].priority - a[1].priority;
+      if(sort === 'newest') return b[1].filed.localeCompare(a[1].filed);
+      if(sort === 'oldest') return a[1].filed.localeCompare(b[1].filed);
+      return 0;
+    });
+
+    const maxScore = matchScores && entries.length ? Math.max(...entries.map(([id]) => matchScores.get(id))) : null;
+
+    queueCount.textContent = nlpFilter
+      ? `${entries.length} match${entries.length===1?'':'es'} for “${nlpFilter}”`
+      : `${entries.length} docket${entries.length===1?'':'s'}`;
+    clearFilterBtn.style.display = (dockedFilterId || nlpFilter) ? 'inline' : 'none';
+    clearFilterBtn.textContent = nlpFilter ? 'Clear search ✕' : 'Clear docket filter ✕';
+
+    if(!entries.length){
+      queueList.innerHTML = nlpFilter
+        ? `<div class="empty-queue">No dockets match “${nlpFilter}”. Try different words, or look up by docket ID above.</div>`
+        : '<div class="empty-queue">No dockets match these filters.</div>';
+      return;
+    }
+
+    queueList.innerHTML = entries.map(([id, d])=>{
+      const band = priorityBand(d.priority);
+      const open = dockedFilterId === id ? ' open' : '';
+
+      let matchBadge = '';
+      if(matchScores){
+        const s = matchScores.get(id);
+        const ratio = maxScore ? s / maxScore : 0;
+        const label = ratio >= 0.75 ? 'Strong match' : ratio >= 0.4 ? 'Good match' : 'Partial match';
+        matchBadge = `<span class="qi-tag match">🔎 ${label}</span>`;
+      }
+
+      return `
+        <details class="queue-item${dockedFilterId===id ? ' highlight' : ''}" data-priority="${band}"${open}>
+          <summary>
+            <span class="qi-priority" data-priority="${band}">${priorityLabel(band)} · ${d.priority}</span>
+            <span class="qi-main">
+              <span class="qi-id-row">
+                <span class="qi-id">${id}</span>
+                <span class="stamp ${stampFor[d.stage]}">${labelFor[d.stage]}</span>
+              </span>
+              <div class="qi-title">${d.title}</div>
+              <div class="qi-tags">
+                <span class="qi-tag">${d.category}</span>
+                <span class="qi-tag">${d.department}</span>
+                <span class="qi-tag lang">${d.languageNative} · ${d.language}</span>
+                ${matchBadge}
+              </div>
+            </span>
+            <span class="qi-right">
+              <span class="qi-date">${d.filedDisplay}</span>
+            </span>
+          </summary>
+          <div class="qi-detail">${buildDetail(id, d)}</div>
+        </details>
+      `;
+    }).join('');
+  }
+
+  [sortSelect, categorySelect, statusSelect].forEach(el=>{
+    el.addEventListener('change', renderQueue);
+  });
+
+  clearFilterBtn.addEventListener('click', ()=>{
+    dockedFilterId = null;
+    nlpFilter = null;
+    nlpInput.value = '';
+    document.getElementById('notFound').classList.remove('show');
+    renderQueue();
+  });
+
+  const trackForm = document.getElementById('trackForm');
+  const trackInput = document.getElementById('trackInput');
+  const nlpForm = document.getElementById('nlpForm');
+  const nlpInput = document.getElementById('nlpInput');
+  const notFound = document.getElementById('notFound');
+
+  function doTrack(rawId){
+    const id = rawId.trim().toUpperCase();
+    if(!id) return;
+    nlpFilter = null;
+    nlpInput.value = '';
+    if(mockDockets[id]){
+      notFound.classList.remove('show');
+      dockedFilterId = id;
+      renderQueue();
+      queueList.scrollIntoView({behavior:'smooth', block:'start'});
+    } else {
+      dockedFilterId = null;
+      renderQueue();
+      notFound.classList.add('show');
+      notFound.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+  }
+
+  function doNlpSearch(rawQuery){
+    const q = rawQuery.trim();
+    if(!q) return;
+    dockedFilterId = null;
+    trackInput.value = '';
+    notFound.classList.remove('show');
+    nlpFilter = q;
+    renderQueue();
+    queueList.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  trackForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    doTrack(trackInput.value);
+  });
+
+  nlpForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    doNlpSearch(nlpInput.value);
+  });
+
+  document.getElementById('tryDemo').addEventListener('click', ()=>{
+    trackInput.value = 'CP-5102';
+    doTrack('CP-5102');
+  });
+
+  // support ?id=CP-4821 deep links (e.g. from a "track" link in a notification)
+  const params = new URLSearchParams(window.location.search);
+  if(params.get('id')){
+    trackInput.value = params.get('id');
+    doTrack(params.get('id'));
+  } else {
+    renderQueue();
+  }
+</script>
+</body>
+</html>

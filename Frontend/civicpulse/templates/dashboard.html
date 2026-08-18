@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .dash-head{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    margin-bottom:40px;
+  }
+  .dash-head h1{font-family:var(--display); font-weight:800; font-size:clamp(1.8rem,3.4vw,2.5rem); text-transform:none;}
+  .dash-head p{color:var(--text-mid); margin-top:8px;}
+
+  .stat-row{display:grid; grid-template-columns:repeat(4, 1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:2px; overflow:hidden; margin-bottom:48px;}
+  @media (max-width: 800px){ .stat-row{grid-template-columns:1fr 1fr;} }
+  .stat-cell{background:var(--surface); padding:24px 22px;}
+  .stat-cell .n{font-family:var(--mono); font-size:2.1rem; font-weight:600;}
+  .stat-cell .l{font-family:var(--mono); font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-low); margin-top:6px;}
+  .stat-cell.total .n{color:var(--text-hi);}
+  .stat-cell.received .n{color:var(--marigold);}
+  .stat-cell.processing .n{color:var(--jade);}
+  .stat-cell.resolved .n{color:var(--blue);}
+
+  .dash-grid{display:grid; grid-template-columns:1.5fr 1fr; gap:36px; align-items:start;}
+  @media (max-width: 940px){ .dash-grid{grid-template-columns:1fr;} }
+
+  .section-block{margin-bottom:16px;}
+  .section-block-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
+  .section-block-head h3{font-family:var(--display); font-weight:700; font-size:1.3rem; text-transform:none;}
+
+  .complaint-card{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:2px;
+    padding:20px 22px; margin-bottom:14px; transition:border-color 0.2s ease;
+  }
+  .complaint-card:hover{border-color:var(--text-low);}
+  .cc-top{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:10px;}
+  .cc-id{font-family:var(--mono); font-size:0.74rem; color:var(--text-low); letter-spacing:0.06em;}
+  .cc-title{font-weight:600; font-size:1rem; margin-top:4px;}
+  .cc-meta{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:0.8rem; color:var(--text-mid); font-family:var(--mono);}
+
+  .policy-card{
+    background:var(--surface); border:1px solid var(--hairline); border-radius:2px;
+    padding:20px 22px; margin-bottom:14px;
+  }
+  .policy-card h4{font-family:var(--display); font-weight:700; font-size:1.1rem; text-transform:none; margin-bottom:8px;}
+  .policy-card p{font-size:0.88rem; color:var(--text-mid); margin-bottom:12px;}
+  .policy-card a{font-family:var(--mono); font-size:0.78rem; color:var(--marigold); text-decoration:none;}
+  .policy-card a:hover{text-decoration:underline;}
+  .policy-source{font-family:var(--mono); font-size:0.68rem; color:var(--text-low); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:6px;}
+
+  .empty-state{
+    text-align:center; padding:40px 20px; color:var(--text-low); font-size:0.9rem;
+    border:1px dashed var(--hairline); border-radius:2px;
+  }
+
+  .account-pointer{
+    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    background:var(--surface); border:2px solid var(--ink); border-radius:2px;
+    padding:22px 26px; margin-top:16px;
+  }
+  .account-pointer p{color:var(--text-mid); font-size:0.88rem; margin-top:4px; max-width:480px;}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <span>Text size</span>
+      <button type="button" id="fontDec" class="font-ctrl" aria-label="Decrease text size">A−</button>
+      <button type="button" id="fontReset" class="font-ctrl" aria-label="Reset text size">A</button>
+      <button type="button" id="fontInc" class="font-ctrl" aria-label="Increase text size">A+</button>
+      <span class="divider" aria-hidden="true">|</span>
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links">
+      <li><a href="dashboard.html" class="active">Dashboard</a></li>
+      <li><a href="complaint.html">File complaint</a></li>
+      <li><a href="track.html">Track complaint</a></li>
+    </ul>
+    <a href="account.html" class="nav-user">
+      <div class="nav-avatar">A</div>
+      <span>Anon Citizen</span>
+    </a>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap">
+    <div class="dash-head reveal">
+      <div>
+        <p class="eyebrow">Your civic pulse</p>
+        <h1>Welcome back, Citizen.</h1>
+        <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p>Here's everything you've filed, and what's relevant to you right now.</p>
+      </div>
+      <a href="complaint.html" class="btn btn-primary">+ File new complaint</a>
+    </div>
+
+    <div class="stat-row reveal">
+      <div class="stat-cell total"><div class="n" id="statTotal">0</div><div class="l">Total filed</div></div>
+      <div class="stat-cell received"><div class="n" id="statReceived">0</div><div class="l">Received</div></div>
+      <div class="stat-cell processing"><div class="n" id="statProcessing">0</div><div class="l">In review</div></div>
+      <div class="stat-cell resolved"><div class="n" id="statResolved">0</div><div class="l">Resolved</div></div>
+    </div>
+
+    <div class="dash-grid">
+      <div>
+        <div class="section-block reveal">
+          <div class="section-block-head">
+            <h3>Your complaints</h3>
+            <span class="eyebrow" style="font-size:0.68rem;">Api /api/admin/view/complaint</span>
+          </div>
+          <div id="complaintList"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-block reveal">
+          <div class="section-block-head">
+            <h3>Recommended for you</h3>
+            <span class="eyebrow" style="font-size:0.68rem;">Api /api/policies/</span>
+          </div>
+          <div id="policyList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-block reveal">
+      <div class="section-block-head">
+        <h3>Account settings</h3>
+        <span class="eyebrow" style="font-size:0.68rem;">Api /api/user/&lt;userID&gt;</span>
+      </div>
+      <div class="account-pointer">
+        <div>
+          <b>Profile, language &amp; login details</b>
+          <p>Update your name, region, employment info, preferred language, or your email and password from your account page.</p>
+        </div>
+        <a href="account.html" class="btn btn-ghost">Manage account →</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  // TODO(backend): replace with GET /api/admin/view/complaint/<userID> (or a citizen-scoped equivalent)
+  const mockComplaints = [
+    { id:'CP-4821', title:'Streetlight not working on 4th Cross Road', authority:'Municipal Corporation Services', filed:'12 Aug 2026', status:'processing' },
+    { id:'CP-4790', title:'Garbage not collected for 6 days, Ward 14', authority:'Ward / Panchayat Office', filed:'09 Aug 2026', status:'received' },
+    { id:'CP-4602', title:'Water supply pipeline leak near bus stand', authority:'Public Sector Utility', filed:'27 Jul 2026', status:'resolved' },
+  ];
+
+  // TODO(backend): replace with GET /api/policies/
+  const mockPolicies = [
+    { title:'PM Awas Yojana — Urban Housing Scheme', content:'Subsidised home loans for first-time urban homebuyers from low- and middle-income groups.', source:'PolicyGyaan', link:'#' },
+    { title:'Municipal Solid Waste Grievance Redressal', content:'Timeline SLAs your municipal corporation is bound to for garbage-collection complaints.', source:'PolicyGyaan', link:'#' },
+  ];
+
+  const statusMeta = {
+    received:{label:'Received', cls:'stamp-received'},
+    processing:{label:'In review', cls:'stamp-processing'},
+    resolved:{label:'Resolved', cls:'stamp-resolved'},
+  };
+
+  function renderComplaints(list){
+    const el = document.getElementById('complaintList');
+    if(!list.length){
+      el.innerHTML = '<div class="empty-state">No complaints filed yet. <a href="complaint.html" style="color:var(--marigold);">File your first one →</a></div>';
+      return;
+    }
+    el.innerHTML = list.map(c=>{
+      const s = statusMeta[c.status];
+      return `
+        <a href="track.html?id=${c.id}" class="complaint-card" style="display:block; text-decoration:none; color:inherit;">
+          <div class="cc-top">
+            <div>
+              <div class="cc-id">${c.id}</div>
+              <div class="cc-title">${c.title}</div>
+            </div>
+            <span class="stamp ${s.cls}">${s.label}</span>
+          </div>
+          <div class="cc-meta">
+            <span>${c.authority}</span>
+            <span>Filed ${c.filed}</span>
+          </div>
+        </a>`;
+    }).join('');
+  }
+
+  function renderPolicies(list){
+    const el = document.getElementById('policyList');
+    if(!list.length){
+      el.innerHTML = '<div class="empty-state">No recommendations yet.</div>';
+      return;
+    }
+    el.innerHTML = list.map(p=>`
+      <div class="policy-card">
+        <div class="policy-source">${p.source}</div>
+        <h4>${p.title}</h4>
+        <p>${p.content}</p>
+        <a href="${p.link}">View details →</a>
+      </div>`).join('');
+  }
+
+  function renderStats(list){
+    document.getElementById('statTotal').textContent = list.length;
+    document.getElementById('statReceived').textContent = list.filter(c=>c.status==='received').length;
+    document.getElementById('statProcessing').textContent = list.filter(c=>c.status==='processing').length;
+    document.getElementById('statResolved').textContent = list.filter(c=>c.status==='resolved').length;
+  }
+
+  renderComplaints(mockComplaints);
+  renderPolicies(mockPolicies);
+  renderStats(mockComplaints);
+
+  // Greet by name once initNavUser() (main.js) has loaded the stored account.
+  const account = getAccount();
+  if(account.name && account.name.trim()){
+    document.querySelector('.dash-head h1').textContent = `Welcome back, ${account.name.trim().split(' ')[0]}.`;
+  }
+</script>
+</body>
+</html>

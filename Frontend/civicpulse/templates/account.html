@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .account-head{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    margin-bottom:28px;
+  }
+  .account-head h1{font-family:var(--display); font-weight:800; font-size:clamp(1.6rem,3vw,2.1rem); text-transform:none;}
+  .account-head p{color:var(--text-mid); margin-top:8px; font-size:0.92rem;}
+
+  .divider-line{border-top:1px solid var(--hairline); margin:22px 0;}
+  .field-note{font-size:0.8rem; color:var(--text-low); margin-top:-4px; margin-bottom:18px;}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <span>Text size</span>
+      <button type="button" id="fontDec" class="font-ctrl" aria-label="Decrease text size">A−</button>
+      <button type="button" id="fontReset" class="font-ctrl" aria-label="Reset text size">A</button>
+      <button type="button" id="fontInc" class="font-ctrl" aria-label="Increase text size">A+</button>
+      <span class="divider" aria-hidden="true">|</span>
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="complaint.html">File complaint</a></li>
+      <li><a href="track.html">Track complaint</a></li>
+    </ul>
+    <a href="account.html" class="nav-user">
+      <div class="nav-avatar" id="navAvatar">A</div>
+      <span id="navName">Anon Citizen</span>
+    </a>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap-narrow">
+
+    <div class="profile-header reveal">
+      <div class="profile-avatar-lg" id="profileAvatar">A</div>
+      <div class="profile-header-meta">
+        <h1 id="profileName">Anon Citizen</h1>
+        <p id="profileEmail">No email on file yet</p>
+      </div>
+      <button type="button" class="btn btn-danger-ghost btn-sm" id="logoutBtn">Log out</button>
+    </div>
+
+    <div class="account-head reveal">
+      <div>
+        <p class="eyebrow">Api /api/user/&lt;userID&gt;</p>
+        <h1>Account settings</h1>
+        <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p>Update the details you gave us at registration. Changes here only affect this device until the real account API is wired up.</p>
+      </div>
+    </div>
+
+    <!-- PROFILE DETAILS -->
+    <form class="settings-section reveal" id="profileForm" novalidate>
+      <h3>Profile details</h3>
+      <p class="section-sub">As per your ID — used to route and follow up on your complaints.</p>
+
+      <div class="settings-grid">
+        <div class="field">
+          <label for="ac-name">Full name</label>
+          <input class="input" type="text" id="ac-name" required placeholder="As per your ID">
+          <p class="error-msg">Please enter your full name.</p>
+        </div>
+        <div class="field">
+          <label for="ac-region">Region</label>
+          <input class="input" type="text" id="ac-region" required placeholder="District / City, State">
+          <p class="error-msg">Region is required so we can route your complaints.</p>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <div class="field">
+          <label for="ac-edu">Highest education</label>
+          <select class="select" id="ac-edu" required>
+            <option value="" disabled>Select one</option>
+            <option>Below 10th</option>
+            <option>10th pass</option>
+            <option>12th pass</option>
+            <option>Diploma</option>
+            <option>Undergraduate</option>
+            <option>Postgraduate &amp; above</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Currently employed?</label>
+          <div class="pill-toggle" id="employToggle">
+            <button type="button" class="active" data-val="true">Yes</button>
+            <button type="button" data-val="false">No</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field conditional-field show" id="occupationField">
+        <label for="ac-occ">Current occupation</label>
+        <input class="input" type="text" id="ac-occ" placeholder="e.g. Auto driver, Teacher, Shopkeeper">
+      </div>
+
+      <div class="settings-actions">
+        <button type="submit" class="btn btn-primary">Save profile</button>
+        <span class="save-note" id="profileSaveNote">Saved ✓</span>
+      </div>
+    </form>
+
+    <!-- LANGUAGE PREFERENCE -->
+    <form class="settings-section reveal" id="langForm" novalidate>
+      <h3>Language &amp; communication</h3>
+      <p class="section-sub">Set at registration — used to pre-fill the complaint form and for status updates once the WhatsApp bot is wired in.</p>
+
+      <div class="field" style="max-width:360px;">
+        <label for="ac-lang">Preferred language</label>
+        <select class="select" id="ac-lang" required>
+          <option value="English">English</option>
+          <option value="Hindi">हिंदी — Hindi</option>
+          <option value="Tamil">தமிழ் — Tamil</option>
+          <option value="Telugu">తెలుగు — Telugu</option>
+          <option value="Kannada">ಕನ್ನಡ — Kannada</option>
+          <option value="Malayalam">മലയാളം — Malayalam</option>
+          <option value="Bengali">বাংলা — Bengali</option>
+          <option value="Marathi">मराठी — Marathi</option>
+          <option value="Gujarati">ગુજરાતી — Gujarati</option>
+          <option value="Punjabi">ਪੰਜਾਬੀ — Punjabi</option>
+          <option value="Urdu">اردو — Urdu</option>
+        </select>
+      </div>
+
+      <div class="settings-actions">
+        <button type="submit" class="btn btn-primary">Save preference</button>
+        <span class="save-note" id="langSaveNote">Saved ✓</span>
+      </div>
+    </form>
+
+    <!-- ACCOUNT & SECURITY -->
+    <form class="settings-section reveal" id="securityForm" novalidate>
+      <h3>Account &amp; security</h3>
+      <p class="section-sub">The email and password you log in with.</p>
+
+      <div class="field">
+        <label for="ac-email">Email</label>
+        <input class="input" type="email" id="ac-email" required placeholder="you@example.com">
+        <p class="error-msg">Enter a valid email address.</p>
+      </div>
+
+      <div class="divider-line"></div>
+
+      <div class="settings-grid">
+        <div class="field">
+          <label for="ac-newpass">New password</label>
+          <input class="input" type="password" id="ac-newpass" placeholder="Leave blank to keep current password" minlength="6">
+          <p class="error-msg">Password must be at least 6 characters.</p>
+        </div>
+        <div class="field">
+          <label for="ac-confirmpass">Confirm new password</label>
+          <input class="input" type="password" id="ac-confirmpass" placeholder="Repeat new password">
+          <p class="error-msg">Passwords don't match.</p>
+        </div>
+      </div>
+      <p class="field-note">Only fill these in if you want to change your password.</p>
+
+      <div class="settings-actions">
+        <button type="submit" class="btn btn-primary">Save account details</button>
+        <span class="save-note" id="securitySaveNote">Saved ✓</span>
+      </div>
+    </form>
+
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  // ---- populate from the shared account store (see main.js) ----
+  const account = getAccount();
+
+  document.getElementById('profileAvatar').textContent = accountInitial(account);
+  document.getElementById('profileName').textContent = accountDisplayName(account);
+  document.getElementById('profileEmail').textContent = account.email || 'No email on file yet';
+
+  document.getElementById('ac-name').value = account.name || '';
+  document.getElementById('ac-region').value = account.region || '';
+  document.getElementById('ac-edu').value = account.education || '';
+  document.getElementById('ac-occ').value = account.occupation || '';
+  document.getElementById('ac-lang').value = account.language || 'English';
+  document.getElementById('ac-email').value = account.email || '';
+
+  // employment toggle — mirrors the one on the registration form
+  const employToggle = document.getElementById('employToggle');
+  const occupationField = document.getElementById('occupationField');
+  function setEmployToggle(isEmployed){
+    employToggle.querySelectorAll('button').forEach(b=>{
+      b.classList.toggle('active', (b.dataset.val === 'true') === isEmployed);
+    });
+    occupationField.classList.toggle('show', isEmployed);
+  }
+  setEmployToggle(account.employed !== false);
+  employToggle.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=> setEmployToggle(btn.dataset.val === 'true'));
+  });
+
+  // basic validation helper, same pattern as login.html
+  function validateForm(form){
+    let valid = true;
+    form.querySelectorAll('[required]').forEach(input=>{
+      const errEl = input.closest('.field')?.querySelector('.error-msg');
+      const ok = input.checkValidity() && input.value.trim() !== '';
+      if(!ok){
+        input.classList.add('field-error');
+        if(errEl) errEl.classList.add('show');
+        valid = false;
+      } else {
+        input.classList.remove('field-error');
+        if(errEl) errEl.classList.remove('show');
+      }
+    });
+    return valid;
+  }
+
+  function flashSaveNote(id){
+    const note = document.getElementById(id);
+    note.classList.add('show');
+    clearTimeout(note._t);
+    note._t = setTimeout(()=> note.classList.remove('show'), 2200);
+  }
+
+  // TODO(backend): PATCH /api/user/<userID>  { name, region, education, employment_status, current_occupation }
+  document.getElementById('profileForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    if(!validateForm(e.target)) return;
+    saveAccount({
+      name: document.getElementById('ac-name').value.trim(),
+      region: document.getElementById('ac-region').value.trim(),
+      education: document.getElementById('ac-edu').value,
+      employed: employToggle.querySelector('button.active').dataset.val === 'true',
+      occupation: document.getElementById('ac-occ').value.trim(),
+    });
+    document.getElementById('profileName').textContent = accountDisplayName(getAccount());
+    document.getElementById('profileAvatar').textContent = accountInitial(getAccount());
+    initNavUser();
+    showToast('Profile updated');
+    flashSaveNote('profileSaveNote');
+  });
+
+  // TODO(backend): PATCH /api/user/<userID>  { language }
+  document.getElementById('langForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    saveAccount({ language: document.getElementById('ac-lang').value });
+    showToast('Language preference saved');
+    flashSaveNote('langSaveNote');
+  });
+
+  // TODO(backend): PATCH /api/user/<userID>  { email } and, if provided, a separate
+  // auth endpoint for the password change — passwords are never stored client-side,
+  // so this demo can't actually verify or persist one.
+  document.getElementById('securityForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    if(!validateForm(e.target)) return;
+
+    const newPass = document.getElementById('ac-newpass').value;
+    const confirmPass = document.getElementById('ac-confirmpass').value;
+    const confirmField = document.getElementById('ac-confirmpass');
+    if(newPass && newPass !== confirmPass){
+      confirmField.classList.add('field-error');
+      confirmField.closest('.field').querySelector('.error-msg').classList.add('show');
+      return;
+    } else {
+      confirmField.classList.remove('field-error');
+      confirmField.closest('.field').querySelector('.error-msg').classList.remove('show');
+    }
+
+    saveAccount({ email: document.getElementById('ac-email').value.trim() });
+    document.getElementById('profileEmail').textContent = getAccount().email || 'No email on file yet';
+    document.getElementById('ac-newpass').value = '';
+    document.getElementById('ac-confirmpass').value = '';
+    showToast(newPass ? 'Email and password updated' : 'Email updated');
+    flashSaveNote('securitySaveNote');
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', ()=>{
+    clearAccount();
+    showToast('Logged out');
+    setTimeout(()=> window.location.href = 'login.html', 700);
+  });
+</script>
+</body>
+</html>

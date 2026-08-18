@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File a complaint — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .complaint-layout{
+    display:grid;
+    grid-template-columns:1fr 340px;
+    gap:36px;
+    align-items:start;
+  }
+  @media (max-width: 940px){ .complaint-layout{grid-template-columns:1fr;} }
+
+  .form-panel{padding:36px clamp(22px, 4vw, 44px);}
+
+  .side-panel{padding:28px 26px; position:sticky; top:110px;}
+  .side-panel h4{
+    font-family:var(--mono); font-size:0.74rem; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--text-low); margin-bottom:18px;
+  }
+  .mini-trail{display:flex; flex-direction:column; gap:0;}
+  .mini-step{display:flex; gap:14px; padding-bottom:22px; position:relative;}
+  .mini-step:not(:last-child)::before{
+    content:""; position:absolute; left:11px; top:26px; bottom:0; width:1px; background:var(--hairline);
+  }
+  .mini-dot{
+    width:24px; height:24px; border-radius:50%; border:2px solid var(--hairline);
+    display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:0.66rem;
+    color:var(--text-mid); flex-shrink:0; background:var(--surface);
+  }
+  .mini-step.active .mini-dot{border-color:var(--marigold); color:var(--marigold);}
+  .mini-step b{display:block; font-size:0.86rem; font-weight:600;}
+  .mini-step span{font-size:0.78rem; color:var(--text-low);}
+
+  .id-preview{
+    margin-top:26px; padding:16px; border:1px dashed var(--hairline); border-radius:2px;
+    text-align:center;
+  }
+  .id-preview span{display:block; font-family:var(--mono); font-size:0.7rem; color:var(--text-low); letter-spacing:0.08em; margin-bottom:6px;}
+  .id-preview b{font-family:var(--mono); font-size:1.1rem; color:var(--marigold);}
+
+  /* success state */
+  .success-card{display:none; text-align:center; padding:60px 30px;}
+  .success-card.show{display:block;}
+  .success-card .stamp{font-size:0.9rem; padding:9px 20px; margin-bottom:22px;}
+  .success-card h2{font-family:var(--display); font-weight:800; font-size:2rem; text-transform:none; margin-bottom:12px;}
+  .success-card p{color:var(--text-mid); max-width:420px; margin:0 auto 28px;}
+  .success-actions{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+
+  .ai-result{
+    max-width:520px; margin:0 auto 30px; text-align:left;
+    border:2px solid var(--ink); border-radius:2px; padding:22px 24px;
+    background:var(--surface-2);
+  }
+  .ai-result h3{
+    font-family:var(--mono); font-size:0.74rem; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--text-mid); margin-bottom:16px; text-align:center;
+  }
+  .ai-result-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px 20px;}
+  @media (max-width:480px){ .ai-result-grid{grid-template-columns:1fr;} }
+  .ai-result-item span{display:block; font-family:var(--mono); font-size:0.68rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-low); margin-bottom:5px;}
+  .ai-result-item b{font-size:0.96rem; color:var(--ink); font-weight:600;}
+  .ai-priority-badge{
+    font-family:var(--mono); font-size:0.78rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
+    padding:4px 11px; border:2px solid currentColor; border-radius:2px; display:inline-block;
+  }
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <span>Text size</span>
+      <button type="button" id="fontDec" class="font-ctrl" aria-label="Decrease text size">A−</button>
+      <button type="button" id="fontReset" class="font-ctrl" aria-label="Reset text size">A</button>
+      <button type="button" id="fontInc" class="font-ctrl" aria-label="Increase text size">A+</button>
+      <span class="divider" aria-hidden="true">|</span>
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="complaint.html" class="active">File complaint</a></li>
+      <li><a href="track.html">Track complaint</a></li>
+    </ul>
+    <a href="account.html" class="nav-user">
+      <div class="nav-avatar">A</div>
+      <span>Anon Citizen</span>
+    </a>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Api /api/create/complaint</p>
+      <h1>File a new complaint</h1>
+      <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p>Give us the facts — where, when, and what happened. AI handles the sorting from here.</p>
+    </div>
+
+    <div class="complaint-layout">
+      <!-- FORM -->
+      <section class="panel form-panel reveal" id="formPanel">
+        <form id="complaintForm" novalidate>
+          <div class="field">
+            <label for="c-title">Title</label>
+            <input class="input" type="text" id="c-title" required placeholder="e.g. Streetlight not working on 4th Cross Road" maxlength="100">
+            <p class="error-msg">Give your complaint a short, specific title.</p>
+          </div>
+
+          <div class="row-2">
+            <div class="field">
+              <label for="c-from">Issue started</label>
+              <input class="input" type="date" id="c-from" required>
+              <p class="error-msg">Select a start date.</p>
+            </div>
+            <div class="field">
+              <label for="c-to">Ongoing until <span style="text-transform:none;">(or today)</span></label>
+              <input class="input" type="date" id="c-to" required>
+              <p class="error-msg">Select an end date.</p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="c-authority">Concerning authority level</label>
+            <select class="select" id="c-authority" required>
+              <option value="" disabled selected>Select the closest match</option>
+              <option>Municipal Corporation Services</option>
+              <option>Ward / Panchayat Office</option>
+              <option>District Administration</option>
+              <option>State Government Department</option>
+              <option>Central Government Department</option>
+              <option>Public Sector Utility (water / power / gas)</option>
+            </select>
+            <p class="hint">Not sure? Leave the default — our AI reroutes based on the complaint body anyway.</p>
+          </div>
+
+          <div class="field">
+            <label for="c-lang">Language of complaint</label>
+            <select class="select" id="c-lang" required>
+              <option value="English" selected>English</option>
+              <option value="Hindi">हिंदी — Hindi</option>
+              <option value="Tamil">தமிழ் — Tamil</option>
+              <option value="Telugu">తెలుగు — Telugu</option>
+              <option value="Kannada">ಕನ್ನಡ — Kannada</option>
+              <option value="Malayalam">മലയാളം — Malayalam</option>
+              <option value="Bengali">বাংলা — Bengali</option>
+              <option value="Marathi">मराठी — Marathi</option>
+              <option value="Gujarati">ગુજરાતી — Gujarati</option>
+              <option value="Punjabi">ਪੰਜਾਬੀ — Punjabi</option>
+              <option value="Urdu">اردو — Urdu</option>
+              <option value="Other">Other</option>
+            </select>
+            <p class="hint">Write your complaint in whichever language you're most comfortable with — the NLP model reads all of these.</p>
+          </div>
+
+          <div class="field">
+            <label for="c-body">What happened</label>
+            <textarea class="textarea" id="c-body" required placeholder="Describe the issue in as much detail as you can — location landmarks help a lot." maxlength="750"></textarea>
+            <p class="error-msg">Please describe the issue.</p>
+            <p class="hint"><span id="bodyCount">0</span>/750 characters</p>
+          </div>
+
+          <div class="field">
+            <label>Proof of complaint</label>
+            <div class="file-drop" id="fileDrop" tabindex="0" role="button" aria-label="Upload proof files">
+              <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,video/mp4,audio/wav">
+              <div class="fd-icon">⇪</div>
+              <div class="fd-text">Click or drag files to upload</div>
+              <div class="fd-sub">JPEG, PNG, MP4, WAV · up to 5 files</div>
+            </div>
+            <div class="file-list" id="fileList"></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">Submit complaint</button>
+        </form>
+      </section>
+
+      <!-- SIDE -->
+      <aside class="panel side-panel reveal">
+        <h4>What happens next</h4>
+        <div class="mini-trail">
+          <div class="mini-step active">
+            <div class="mini-dot">01</div>
+            <div><b>Received</b><span>Your complaint enters the queue instantly.</span></div>
+          </div>
+          <div class="mini-step">
+            <div class="mini-dot">02</div>
+            <div><b>Triaged by AI</b><span>Classified, de-duplicated &amp; routed — usually under 30 seconds.</span></div>
+          </div>
+          <div class="mini-step">
+            <div class="mini-dot">03</div>
+            <div><b>Assigned to official</b><span>The right authority gets it, with your proof attached.</span></div>
+          </div>
+          <div class="mini-step">
+            <div class="mini-dot">04</div>
+            <div><b>Resolved</b><span>You're notified the moment it's closed.</span></div>
+          </div>
+        </div>
+        <div class="id-preview">
+          <span>Your docket number</span>
+          <b id="idPreview">Assigned on submit</b>
+        </div>
+      </aside>
+    </div>
+
+    <!-- SUCCESS STATE -->
+    <section class="panel success-card reveal" id="successCard">
+      <span class="stamp stamp-received">Received</span>
+      <h2>Complaint filed</h2>
+      <p>Your docket is <strong id="successId">CP-0000</strong>. Track its status any time from the priority queue — no calls needed.</p>
+
+      <div class="ai-result">
+        <h3>NLP classification (automatic)</h3>
+        <div class="ai-result-grid">
+          <div class="ai-result-item">
+            <span>Category</span>
+            <b id="aiCategory">—</b>
+          </div>
+          <div class="ai-result-item">
+            <span>Routed to</span>
+            <b id="aiDepartment">—</b>
+          </div>
+          <div class="ai-result-item">
+            <span>Priority</span>
+            <span class="ai-priority-badge" id="aiPriority">—</span>
+          </div>
+          <div class="ai-result-item">
+            <span>Language detected</span>
+            <b id="aiLanguage">—</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="success-actions">
+        <a href="track.html" class="btn btn-primary" id="successTrackLink">Track this docket</a>
+        <button class="btn btn-ghost" id="fileAnother">File another complaint</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  // pre-fill from the citizen's saved language preference (set at registration / account settings)
+  const savedLangPref = getAccount().language;
+  if(savedLangPref) document.getElementById('c-lang').value = savedLangPref;
+
+  const getFiles = initFileDrop(
+    document.getElementById('fileDrop'),
+    document.getElementById('fileInput'),
+    document.getElementById('fileList'),
+    { maxFiles: 5, accept:['image/jpeg','image/png','video/mp4','audio/wav'] }
+  );
+
+  const bodyEl = document.getElementById('c-body');
+  const bodyCount = document.getElementById('bodyCount');
+  bodyEl.addEventListener('input', ()=> bodyCount.textContent = bodyEl.value.length);
+
+  const form = document.getElementById('complaintForm');
+  const formPanel = document.getElementById('formPanel');
+  const successCard = document.getElementById('successCard');
+  const successId = document.getElementById('successId');
+
+  function validateForm(f){
+    let valid = true;
+    f.querySelectorAll('[required]').forEach(input=>{
+      const errEl = input.closest('.field')?.querySelector('.error-msg');
+      const ok = input.checkValidity() && input.value.trim() !== '';
+      if(!ok){
+        input.classList.add('field-error');
+        if(errEl) errEl.classList.add('show');
+        valid = false;
+      } else {
+        input.classList.remove('field-error');
+        if(errEl) errEl.classList.remove('show');
+      }
+    });
+    return valid;
+  }
+
+  function genDocketId(){
+    return 'CP-' + Math.floor(1000 + Math.random()*9000);
+  }
+
+  // TODO(backend): this whole function is a stand-in for the real ranking/classification
+  // model your team is building server-side. It exists only so the demo can show what the
+  // response might look like — replace with whatever POST /api/create/complaint returns.
+  const CATEGORY_RULES = [
+    { category:'Public Safety', department:'Municipal Corporation — Public Safety Cell', keywords:['danger','safety','accident','manhole','child','school','theft'], boost:20 },
+    { category:'Electricity', department:'Electricity Board', keywords:['transformer','power','electricity','wire','spark','shock'], boost:15 },
+    { category:'Water Supply', department:'Public Sector Utility (Water Works)', keywords:['water','pipeline','tap','supply'], boost:5 },
+    { category:'Drainage & Sewage', department:'Drainage & Sewage Board', keywords:['drain','sewage','overflow','flood'], boost:10 },
+    { category:'Roads & Potholes', department:'PWD (Roads)', keywords:['pothole','road','highway','tar'], boost:8 },
+    { category:'Street Lighting', department:'Ward Office', keywords:['streetlight','light','lamp','bulb','dark'], boost:0 },
+    { category:'Sanitation & Waste', department:'Ward / Panchayat Office', keywords:['garbage','waste','trash','sanitation','collected'], boost:0 },
+    { category:'Encroachment', department:'Town Planning (Encroachment)', keywords:['encroachment','footpath','illegal','stall','vendor'], boost:-5 },
+  ];
+
+  function classifyComplaint(title, body){
+    const text = (title + ' ' + body).toLowerCase();
+    let best = null;
+    for(const rule of CATEGORY_RULES){
+      const hits = rule.keywords.filter(k => text.includes(k)).length;
+      if(hits > 0 && (!best || hits > best.hits)){
+        best = { ...rule, hits };
+      }
+    }
+    if(!best){
+      return { category:'General Grievance', department:'Municipal Corporation Services', priority: 35 + Math.floor(Math.random()*15) };
+    }
+    const base = 45 + best.hits * 12 + best.boost;
+    const priority = Math.max(5, Math.min(99, base + Math.floor(Math.random()*10)));
+    return { category: best.category, department: best.department, priority };
+  }
+
+  function priorityBand(score){
+    if(score >= 85) return { label:'Urgent', color:'var(--red)' };
+    if(score >= 65) return { label:'High', color:'var(--saffron-dim)' };
+    if(score >= 40) return { label:'Medium', color:'var(--navy)' };
+    return { label:'Low', color:'var(--text-low)' };
+  }
+
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    if(!validateForm(form)) return;
+
+    const title = document.getElementById('c-title').value;
+    const body = bodyEl.value;
+    const language = document.getElementById('c-lang').value;
+
+    const payload = {
+      title,
+      date_from_to: [document.getElementById('c-from').value, document.getElementById('c-to').value],
+      authority_level: document.getElementById('c-authority').value,
+      language,
+      body,
+      proof_of_complaints: getFiles().map(f=>f.name)
+    };
+    // TODO(backend): POST /api/create/complaint  → send `payload` as multipart/form-data with files
+    console.log('complaint payload', payload);
+
+    const id = genDocketId();
+    const result = classifyComplaint(title, body);
+    const band = priorityBand(result.priority);
+
+    successId.textContent = id;
+    document.getElementById('aiCategory').textContent = result.category;
+    document.getElementById('aiDepartment').textContent = result.department;
+    document.getElementById('aiLanguage').textContent = language;
+    const prioEl = document.getElementById('aiPriority');
+    prioEl.textContent = `${band.label} · ${result.priority}/100`;
+    prioEl.style.color = band.color;
+    document.getElementById('successTrackLink').href = 'track.html?id=' + id;
+
+    document.querySelectorAll('.complaint-layout').forEach(el=> el.style.display = 'none');
+    successCard.classList.add('show');
+    showToast('Docket ' + id + ' created');
+    window.scrollTo({top: successCard.offsetTop - 100, behavior:'smooth'});
+  });
+
+  document.getElementById('fileAnother').addEventListener('click', ()=>{
+    form.reset();
+    document.getElementById('fileList').innerHTML = '';
+    bodyCount.textContent = '0';
+    successCard.classList.remove('show');
+    document.querySelectorAll('.complaint-layout').forEach(el=> el.style.display = '');
+  });
+</script>
+</body>
+</html>
