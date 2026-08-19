@@ -27,9 +27,6 @@
   .stat-cell.processing .n{color:var(--jade);}
   .stat-cell.resolved .n{color:var(--blue);}
 
-  .dash-grid{display:grid; grid-template-columns:1.5fr 1fr; gap:36px; align-items:start;}
-  @media (max-width: 940px){ .dash-grid{grid-template-columns:1fr;} }
-
   .section-block{margin-bottom:16px;}
   .section-block-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
   .section-block-head h3{font-family:var(--display); font-weight:700; font-size:1.3rem; text-transform:none;}
@@ -40,18 +37,19 @@
   }
   .complaint-card:hover{border-color:var(--text-low);}
   .cc-top{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:10px;}
-  .cc-id{font-family:var(--mono); font-size:0.74rem; color:var(--text-low); letter-spacing:0.06em;}
-  .cc-title{font-weight:600; font-size:1rem; margin-top:4px;}
+  .cc-title{font-weight:600; font-size:1rem;}
   .cc-meta{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:0.8rem; color:var(--text-mid); font-family:var(--mono);}
 
+  .policy-grid-dash{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;}
   .policy-card{
+    display:block; text-decoration:none; color:inherit;
     background:var(--surface); border:1px solid var(--hairline); border-radius:2px;
-    padding:20px 22px; margin-bottom:14px;
+    padding:20px 22px; transition:border-color 0.2s ease, transform 0.15s ease;
   }
-  .policy-card h4{font-family:var(--display); font-weight:700; font-size:1.1rem; text-transform:none; margin-bottom:8px;}
+  .policy-card:hover{border-color:var(--navy); transform:translateY(-2px);}
+  .policy-card h4{font-family:var(--display); font-weight:700; font-size:1.1rem; text-transform:none; margin-bottom:8px; line-height:1.3;}
   .policy-card p{font-size:0.88rem; color:var(--text-mid); margin-bottom:12px;}
-  .policy-card a{font-family:var(--mono); font-size:0.78rem; color:var(--marigold); text-decoration:none;}
-  .policy-card a:hover{text-decoration:underline;}
+  .policy-card .policy-link{font-family:var(--mono); font-size:0.78rem; color:var(--marigold);}
   .policy-source{font-family:var(--mono); font-size:0.68rem; color:var(--text-low); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:6px;}
 
   .empty-state{
@@ -90,7 +88,7 @@
     <ul class="nav-links" id="navLinksList">
       <li><a href="dashboard.html" class="active">Dashboard</a></li>
       <li><a href="complaint.html">File complaint</a></li>
-      <li><a href="track.html">Track complaint</a></li>
+      <li><a href="track.html">Complaints &amp; Policies</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
@@ -123,26 +121,20 @@
       <div class="stat-cell resolved"><div class="n" id="statResolved">0</div><div class="l">Resolved</div></div>
     </div>
 
-    <div class="dash-grid">
-      <div>
-        <div class="section-block reveal">
-          <div class="section-block-head">
-            <h3>Your complaints</h3>
-            <span class="eyebrow" style="font-size:0.68rem;">Api /api/admin/view/complaint</span>
-          </div>
-          <div id="complaintList"></div>
-        </div>
+    <div class="section-block reveal">
+      <div class="section-block-head">
+        <h3>Recommended for you</h3>
+        <span class="eyebrow" style="font-size:0.68rem;">PolicyGyaan · Api /api/policies/</span>
       </div>
+      <div id="policyList" class="policy-grid-dash"></div>
+    </div>
 
-      <div>
-        <div class="section-block reveal">
-          <div class="section-block-head">
-            <h3>Recommended for you</h3>
-            <span class="eyebrow" style="font-size:0.68rem;">Api /api/policies/</span>
-          </div>
-          <div id="policyList"></div>
-        </div>
+    <div class="section-block reveal" style="margin-top:44px;">
+      <div class="section-block-head">
+        <h3>Your complaints</h3>
+        <span class="eyebrow" style="font-size:0.68rem;">Api /api/admin/view/complaint</span>
       </div>
+      <div id="complaintList"></div>
     </div>
 
     <div class="section-block reveal">
@@ -178,12 +170,6 @@
     { id:'CP-4602', title:'Water supply pipeline leak near bus stand', authority:'Public Sector Utility', filed:'27 Jul 2026', status:'resolved' },
   ];
 
-  // TODO(backend): replace with GET /api/policies/
-  const mockPolicies = [
-    { title:'PM Awas Yojana — Urban Housing Scheme', content:'Subsidised home loans for first-time urban homebuyers from low- and middle-income groups.', source:'PolicyGyaan', link:'#' },
-    { title:'Municipal Solid Waste Grievance Redressal', content:'Timeline SLAs your municipal corporation is bound to for garbage-collection complaints.', source:'PolicyGyaan', link:'#' },
-  ];
-
   const statusMeta = {
     received:{label:'Received', cls:'stamp-received'},
     processing:{label:'In review', cls:'stamp-processing'},
@@ -199,12 +185,9 @@
     el.innerHTML = list.map(c=>{
       const s = statusMeta[c.status];
       return `
-        <a href="track.html?id=${c.id}" class="complaint-card" style="display:block; text-decoration:none; color:inherit;">
+        <a href="track.html?q=${encodeURIComponent(c.title)}" class="complaint-card" style="display:block; text-decoration:none; color:inherit;">
           <div class="cc-top">
-            <div>
-              <div class="cc-id">${c.id}</div>
-              <div class="cc-title">${c.title}</div>
-            </div>
+            <div class="cc-title">${c.title}</div>
             <span class="stamp ${s.cls}">${s.label}</span>
           </div>
           <div class="cc-meta">
@@ -215,19 +198,28 @@
     }).join('');
   }
 
-  function renderPolicies(list){
+  // "Recommended for you" — PolicyGyaan (see CP_POLICIES / scorePolicies in main.js).
+  // TODO(backend): replace with GET /api/policies/ scoped to the citizen's history.
+  // Stand-in personalization: score policies against the citizen's own filed
+  // complaints, so the grid reflects what's actually relevant to them.
+  function renderPolicies(complaintList){
     const el = document.getElementById('policyList');
+    const combinedText = complaintList.map(c => c.title).join(' ');
+    let ranked = scorePolicies(combinedText).filter(r => r.score > 0);
+    if(!ranked.length) ranked = CP_POLICIES.map(p => ({ policy:p, score:0 }));
+
+    const list = ranked.slice(0, 6).map(r => r.policy);
     if(!list.length){
       el.innerHTML = '<div class="empty-state">No recommendations yet.</div>';
       return;
     }
     el.innerHTML = list.map(p=>`
-      <div class="policy-card">
-        <div class="policy-source">${p.source}</div>
+      <a href="policy.html?policy=${p.slug}" class="policy-card">
+        <div class="policy-source">${p.source} · ${p.category}</div>
         <h4>${p.title}</h4>
-        <p>${p.content}</p>
-        <a href="${p.link}">View details →</a>
-      </div>`).join('');
+        <p>${p.summary}</p>
+        <span class="policy-link">View roadmap →</span>
+      </a>`).join('');
   }
 
   function renderStats(list){
@@ -238,7 +230,7 @@
   }
 
   renderComplaints(mockComplaints);
-  renderPolicies(mockPolicies);
+  renderPolicies(mockComplaints);
   renderStats(mockComplaints);
 
   // Greet by name once initNavUser() (main.js) has loaded the stored account.
