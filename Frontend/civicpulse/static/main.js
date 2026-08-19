@@ -188,6 +188,20 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 // ---------------------------------------------------------------------
+// COMPLAINTS — real API wrappers (see complaints.py). Backed by Postgres.
+// ---------------------------------------------------------------------
+function apiCreateComplaint(payload){
+  return apiPost('/api/complaints', payload);
+}
+function apiMyComplaints(){
+  return apiGet('/api/complaints/mine');
+}
+function apiQueue(params){
+  const qs = new URLSearchParams(params || {});
+  return apiGet('/api/complaints' + (qs.toString() ? '?' + qs.toString() : ''));
+}
+
+// ---------------------------------------------------------------------
 // POLICYGYAAN — shared policy dataset.
 // Real data now — served by the Flask app (see policy_engine.py / app.py)
 // and injected per-page via Jinja as `const CP_POLICIES = {{ ...|safe }}`

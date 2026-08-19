@@ -308,44 +308,6 @@
     return valid;
   }
 
-  function genComplaintRef(){
-    // Internal reference only now — the citizen never sees or needs to note
-    // this down. Complaints are found later via NLP search on the title/body,
-    // not by an ID. TODO(backend): swap for whatever id POST /api/create/complaint returns.
-    return 'CP-' + Math.floor(1000 + Math.random()*9000);
-  }
-
-  // TODO(backend): this whole function is a stand-in for the real ranking/classification
-  // model your team is building server-side. It exists only so the demo can show what the
-  // response might look like — replace with whatever POST /api/create/complaint returns.
-  const CATEGORY_RULES = [
-    { category:'Public Safety', department:'Municipal Corporation — Public Safety Cell', keywords:['danger','safety','accident','manhole','child','school','theft'], boost:20 },
-    { category:'Electricity', department:'Electricity Board', keywords:['transformer','power','electricity','wire','spark','shock'], boost:15 },
-    { category:'Water Supply', department:'Public Sector Utility (Water Works)', keywords:['water','pipeline','tap','supply'], boost:5 },
-    { category:'Drainage & Sewage', department:'Drainage & Sewage Board', keywords:['drain','sewage','overflow','flood'], boost:10 },
-    { category:'Roads & Potholes', department:'PWD (Roads)', keywords:['pothole','road','highway','tar'], boost:8 },
-    { category:'Street Lighting', department:'Ward Office', keywords:['streetlight','light','lamp','bulb','dark'], boost:0 },
-    { category:'Sanitation & Waste', department:'Ward / Panchayat Office', keywords:['garbage','waste','trash','sanitation','collected'], boost:0 },
-    { category:'Encroachment', department:'Town Planning (Encroachment)', keywords:['encroachment','footpath','illegal','stall','vendor'], boost:-5 },
-  ];
-
-  function classifyComplaint(title, body){
-    const text = (title + ' ' + body).toLowerCase();
-    let best = null;
-    for(const rule of CATEGORY_RULES){
-      const hits = rule.keywords.filter(k => text.includes(k)).length;
-      if(hits > 0 && (!best || hits > best.hits)){
-        best = { ...rule, hits };
-      }
-    }
-    if(!best){
-      return { category:'General Grievance', department:'Municipal Corporation Services', priority: 35 + Math.floor(Math.random()*15) };
-    }
-    const base = 45 + best.hits * 12 + best.boost;
-    const priority = Math.max(5, Math.min(99, base + Math.floor(Math.random()*10)));
-    return { category: best.category, department: best.department, priority };
-  }
-
   function priorityBand(score){
     if(score >= 85) return { label:'Urgent', color:'var(--red)' };
     if(score >= 65) return { label:'High', color:'var(--saffron-dim)' };
@@ -360,35 +322,40 @@
     const title = document.getElementById('c-title').value;
     const body = bodyEl.value;
     const language = document.getElementById('c-lang').value;
+    const submitBtn = form.querySelector('button[type="submit"]');
 
+    // TODO(backend): file uploads (proof_of_complaints) still need a real
+    // storage endpoint (e.g. Supabase Storage) — today we only send the count.
     const payload = {
       title,
-      date_from_to: [document.getElementById('c-from').value, document.getElementById('c-to').value],
-      authority_level: document.getElementById('c-authority').value,
-      language,
       body,
-      proof_of_complaints: getFiles().map(f=>f.name)
+      language,
+      files_count: getFiles().length,
     };
-    // TODO(backend): POST /api/create/complaint  → send `payload` as multipart/form-data with files
-    console.log('complaint payload', payload);
 
-    const ref = genComplaintRef();
-    const result = classifyComplaint(title, body);
-    const band = priorityBand(result.priority);
+    if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Filing…'; }
 
-    successId.textContent = `"${title.length > 40 ? title.slice(0, 40) + '…' : title}"`;
-    document.getElementById('aiCategory').textContent = result.category;
-    document.getElementById('aiDepartment').textContent = result.department;
-    document.getElementById('aiLanguage').textContent = language;
-    const prioEl = document.getElementById('aiPriority');
-    prioEl.textContent = `${band.label} · ${result.priority}/100`;
-    prioEl.style.color = band.color;
-    document.getElementById('successTrackLink').href = 'track.html';
+    apiCreateComplaint(payload).then(result=>{
+      const band = priorityBand(result.priority);
 
-    document.querySelectorAll('.complaint-layout').forEach(el=> el.style.display = 'none');
-    successCard.classList.add('show');
-    showToast('Complaint filed — ' + ref);
-    window.scrollTo({top: successCard.offsetTop - 100, behavior:'smooth'});
+      successId.textContent = `"${result.title.length > 40 ? result.title.slice(0, 40) + '…' : result.title}"`;
+      document.getElementById('aiCategory').textContent = result.category;
+      document.getElementById('aiDepartment').textContent = result.department;
+      document.getElementById('aiLanguage').textContent = result.language;
+      const prioEl = document.getElementById('aiPriority');
+      prioEl.textContent = `${band.label} · ${result.priority}/100`;
+      prioEl.style.color = band.color;
+      document.getElementById('successTrackLink').href = 'track.html?q=' + encodeURIComponent(result.title);
+
+      document.querySelectorAll('.complaint-layout').forEach(el=> el.style.display = 'none');
+      successCard.classList.add('show');
+      showToast('Complaint filed');
+      window.scrollTo({top: successCard.offsetTop - 100, behavior:'smooth'});
+    }).catch(err=>{
+      showToast(err.message);
+    }).finally(()=>{
+      if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'File complaint'; }
+    });
   });
 
   document.getElementById('fileAnother').addEventListener('click', ()=>{

@@ -124,7 +124,7 @@
     <div class="section-block reveal">
       <div class="section-block-head">
         <h3>Recommended for you</h3>
-        <span class="eyebrow" style="font-size:0.68rem;">PolicyGyaan · /api/policies/</span>
+        <span class="eyebrow" style="font-size:0.68rem;">PolicyGyaan · Api /api/policies/</span>
       </div>
       <div id="policyList" class="policy-grid-dash"></div>
     </div>
@@ -164,20 +164,15 @@
 <script src="main.js"></script>
 <script>
   // PolicyGyaan bridge (see policy_engine.py / app.py:dashboard()) — a
-  // real, per-citizen ranked list rendered server-side via Jinja. This
-  // replaces the array that used to be hardcoded in static/main.js.
+  // real, per-citizen ranked list rendered server-side via Jinja (Gemini,
+  // or keyword-ranked as a fallback). Replaces the array that used to be
+  // hardcoded in static/main.js.
   const CP_POLICIES = {{ policies_json|safe }};
-
-  // TODO(backend): replace with GET /api/admin/view/complaint/<userID> (or a citizen-scoped equivalent)
-  const mockComplaints = [
-    { id:'CP-4821', title:'Streetlight not working on 4th Cross Road', authority:'Municipal Corporation Services', filed:'12 Aug 2026', status:'processing' },
-    { id:'CP-4790', title:'Garbage not collected for 6 days, Ward 14', authority:'Ward / Panchayat Office', filed:'09 Aug 2026', status:'received' },
-    { id:'CP-4602', title:'Water supply pipeline leak near bus stand', authority:'Public Sector Utility', filed:'27 Jul 2026', status:'resolved' },
-  ];
 
   const statusMeta = {
     received:{label:'Received', cls:'stamp-received'},
     processing:{label:'In review', cls:'stamp-processing'},
+    assigned:{label:'In review', cls:'stamp-processing'},
     resolved:{label:'Resolved', cls:'stamp-resolved'},
   };
 
@@ -188,7 +183,7 @@
       return;
     }
     el.innerHTML = list.map(c=>{
-      const s = statusMeta[c.status];
+      const s = statusMeta[c.stage] || statusMeta.received;
       return `
         <a href="track.html?q=${encodeURIComponent(c.title)}" class="complaint-card" style="display:block; text-decoration:none; color:inherit;">
           <div class="cc-top">
@@ -197,7 +192,7 @@
           </div>
           <div class="cc-meta">
             <span>${c.authority}</span>
-            <span>Filed ${c.filed}</span>
+            <span>Filed ${c.filedDisplay}</span>
           </div>
         </a>`;
     }).join('');
@@ -205,15 +200,14 @@
 
   // "Recommended for you" — PolicyGyaan. CP_POLICIES above is already a
   // real, personalised (Gemini-ranked, or keyword-ranked as a fallback)
-  // top-N from the server for this citizen's profile — see
-  // policy_engine.py / app.py:dashboard(). This re-scores that same list
-  // against the citizen's filed complaints (still mocked below —
-  // TODO(backend): swap mockComplaints for real ones) so the grid reflects
-  // what's relevant *right now*, not just their static profile.
+  // top-N from the server for this citizen — see policy_engine.py /
+  // app.py:dashboard(). This re-scores that same list against the
+  // citizen's freshly-fetched complaints so the grid stays in sync if
+  // they've just filed something new this session.
   function renderPolicies(complaintList){
     const el = document.getElementById('policyList');
     const combinedText = complaintList.map(c => c.title).join(' ');
-    let ranked = scorePolicies(combinedText).filter(r => r.score > 0);
+    let ranked = scorePolicies(combinedText, CP_POLICIES).filter(r => r.score > 0);
     if(!ranked.length) ranked = CP_POLICIES.map(p => ({ policy:p, score:0 }));
 
     const list = ranked.slice(0, 6).map(r => r.policy);
@@ -232,14 +226,21 @@
 
   function renderStats(list){
     document.getElementById('statTotal').textContent = list.length;
-    document.getElementById('statReceived').textContent = list.filter(c=>c.status==='received').length;
-    document.getElementById('statProcessing').textContent = list.filter(c=>c.status==='processing').length;
-    document.getElementById('statResolved').textContent = list.filter(c=>c.status==='resolved').length;
+    document.getElementById('statReceived').textContent = list.filter(c=>c.stage==='received').length;
+    document.getElementById('statProcessing').textContent = list.filter(c=>c.stage==='processing' || c.stage==='assigned').length;
+    document.getElementById('statResolved').textContent = list.filter(c=>c.stage==='resolved').length;
   }
 
-  renderComplaints(mockComplaints);
-  renderPolicies(mockComplaints);
-  renderStats(mockComplaints);
+  apiMyComplaints().then(list=>{
+    renderComplaints(list);
+    renderPolicies(list);
+    renderStats(list);
+  }).catch(err=>{
+    showToast(err.message);
+    renderComplaints([]);
+    renderPolicies([]);
+    renderStats([]);
+  });
 
   // Greet by name once initNavUser() (main.js) has loaded the stored account.
   const account = getAccount();

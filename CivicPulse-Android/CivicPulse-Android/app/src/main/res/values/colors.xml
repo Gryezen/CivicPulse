@@ -1,0 +1,23 @@
+<resources>
+    <!-- Mirrors Frontend/civicpulse/static/style.css custom properties, so the
+         Android app and the web app read as the same product. -->
+    <color name="paper">#F5F5F2</color>
+    <color name="paper_dim">#EBEAE4</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="hairline">#B8B8B0</color>
+    <color name="hairline_dark">#8A8A82</color>
+
+    <color name="ink">#1A1A1A</color>
+    <color name="text_hi">#1A1A1A</color>
+    <color name="text_mid">#4A4A46</color>
+    <color name="text_low">#6C6C64</color>
+
+    <color name="saffron">#FF9933</color>
+    <color name="saffron_dim">#CC7A29</color>
+    <color name="green">#0F7A1F</color>
+    <color name="green_dim">#0C5F19</color>
+    <color name="navy">#0B2F8F</color>
+    <color name="navy_dark">#081F5E</color>
+    <color name="red">#B3261E</color>
+    <color name="red_dim">#8C1E18</color>
+</resources>

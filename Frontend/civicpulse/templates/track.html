@@ -300,96 +300,17 @@
   // used to be hardcoded in static/main.js.
   const CP_POLICIES = {{ all_policies_json|safe }};
 
-  // TODO(backend): replace with a queue endpoint for the ranked list —
-  // GET /api/admin/queue?sort=priority&category=&status= — returning items
-  // shaped like `mockQueueComplaints` below (priority/category/department/
-  // language from the NLP model's output), and a free-text endpoint for the
-  // search box: GET /api/citizen/search?q=<text> returning complaints ranked
-  // by the model's semantic similarity score. No docket-number lookup —
-  // everything is found via this NLP search. scoreComplaints() below is a
-  // keyword-overlap stand-in for that ranking.
-  const mockQueueComplaints = {
-    'CP-5102': {
-      title:'Open manhole near school gate, Anna Nagar',
-      category:'Public Safety', department:'Municipal Corporation — Public Safety Cell',
-      language:'Tamil', languageNative:'தமிழ்',
-      priority:96, filed:'2026-08-17', filedDisplay:'17 Aug 2026', files:3,
-      authority:'Municipal Corporation Services', stage:'processing',
-      body:'Uncovered manhole directly outside a primary school gate, first reported this morning. High foot traffic of children before 8am.',
-      note:'Flagged Urgent by the model due to child-safety keywords and proximity to a school. Escalated directly to the Public Safety Cell.'
-    },
-    'CP-5099': {
-      title:'Transformer sparking after rain, Sector 12',
-      category:'Electricity', department:'Electricity Board',
-      language:'Hindi', languageNative:'हिंदी',
-      priority:91, filed:'2026-08-16', filedDisplay:'16 Aug 2026', files:2,
-      authority:'Electricity Board', stage:'assigned',
-      body:'Visible sparking from a pole-mounted transformer since last night\'s rain. Residents have been asked to stay clear of the area.',
-      note:'Assigned to an Electricity Board field engineer. Ranked Urgent on fire/electrocution risk terms detected in the complaint text.'
-    },
-    'CP-4821': {
-      title:'Streetlight not working on 4th Cross Road',
-      category:'Street Lighting', department:'Ward Office',
-      language:'English', languageNative:'English',
-      priority:58, filed:'2026-08-12', filedDisplay:'12 Aug 2026', files:2,
-      authority:'Municipal Corporation Services', stage:'processing',
-      body:'Streetlight pole #14 on 4th Cross Road has been dark for over a week. Area is unsafe for pedestrians after 7pm.',
-      note:'Classified as a duplicate cluster with 6 similar reports and routed to the Ward Office. Expect an update within 48 hours.'
-    },
-    'CP-5087': {
-      title:'Sewage overflow onto main road, Kumaran Street',
-      category:'Drainage & Sewage', department:'Drainage & Sewage Board',
-      language:'Tamil', languageNative:'தமிழ்',
-      priority:83, filed:'2026-08-15', filedDisplay:'15 Aug 2026', files:4,
-      authority:'Drainage & Sewage Board', stage:'received',
-      body:'Sewage line overflow has been flowing onto the main carriageway for two days, causing a strong odour and health concerns.',
-      note:'Queued for AI triage — high priority pre-score due to public-health terms; awaiting confirmation from the model.'
-    },
-    'CP-4790': {
-      title:'Garbage not collected for 6 days, Ward 14',
-      category:'Sanitation & Waste', department:'Ward / Panchayat Office',
-      language:'English', languageNative:'English',
-      priority:47, filed:'2026-08-09', filedDisplay:'09 Aug 2026', files:3,
-      authority:'Ward / Panchayat Office', stage:'received',
-      body:'Household waste has piled up on the corner of Ward 14 since last Tuesday. Attracting stray animals.',
-      note:'In the queue for AI triage. This usually takes under a minute — check back shortly.'
-    },
-    'CP-5061': {
-      title:'Pothole cluster causing two-wheeler accidents',
-      category:'Roads & Potholes', department:'PWD (Roads)',
-      language:'Kannada', languageNative:'ಕನ್ನಡ',
-      priority:72, filed:'2026-08-14', filedDisplay:'14 Aug 2026', files:5,
-      authority:'PWD (Roads)', stage:'assigned',
-      body:'A cluster of deep potholes near the flyover entrance has caused at least two reported two-wheeler falls this week.',
-      note:'Ranked High on injury-risk and repeat-mention signals; assigned to PWD for inspection within 5 working days.'
-    },
-    'CP-5040': {
-      title:'Encroachment blocking footpath, MG Road',
-      category:'Encroachment', department:'Town Planning (Encroachment)',
-      language:'Telugu', languageNative:'తెలుగు',
-      priority:34, filed:'2026-08-11', filedDisplay:'11 Aug 2026', files:1,
-      authority:'Town Planning (Encroachment)', stage:'received',
-      body:'A vendor stall has expanded onto the footpath, forcing pedestrians onto the road.',
-      note:'Ranked Low relative to the current queue — no immediate safety signal detected — but retained for routing.'
-    },
-    'CP-4602': {
-      title:'Water supply pipeline leak near bus stand',
-      category:'Water Supply', department:'Public Sector Utility (Water Works)',
-      language:'English', languageNative:'English',
-      priority:64, filed:'2026-07-27', filedDisplay:'27 Jul 2026', files:1,
-      authority:'Public Sector Utility', stage:'resolved',
-      body:'Visible leak from the main pipeline opposite the bus stand, wasting water and flooding the walkway.',
-      note:'Marked resolved by the Public Works Engineer on 3 Aug 2026. Reopen this complaint if the issue recurs.'
-    },
-    'CP-5011': {
-      title:'Streetlight flickering, minor — Gandhi Nagar',
-      category:'Street Lighting', department:'Ward Office',
-      language:'Bengali', languageNative:'বাংলা',
-      priority:21, filed:'2026-08-08', filedDisplay:'08 Aug 2026', files:0,
-      authority:'Municipal Corporation Services', stage:'resolved',
-      body:'One streetlight flickers intermittently but still functions. Low urgency, filed for the record.',
-      note:'Resolved — bulb replaced during routine ward maintenance on 10 Aug 2026.'
-    }
+  // Categories mirror classify.py's CATEGORY_RULES (kept in sync manually —
+  // small enough not to warrant a round-trip just to populate the filter).
+  const CATEGORIES = [
+    'Public Safety', 'Electricity', 'Water Supply', 'Drainage & Sewage',
+    'Roads & Potholes', 'Street Lighting', 'Sanitation & Waste', 'Encroachment',
+    'General Grievance',
+  ];
+  const LANG_NATIVE = {
+    English:'English', Hindi:'हिंदी', Tamil:'தமிழ்', Telugu:'తెలుగు', Kannada:'ಕನ್ನಡ',
+    Malayalam:'മലയാളം', Bengali:'বাংলা', Marathi:'मराठी', Gujarati:'ગુજરાતી',
+    Punjabi:'ਪੰਜਾਬੀ', Urdu:'اردو',
   };
 
   const stageOrder = ['received','processing','assigned','resolved'];
@@ -406,35 +327,8 @@
     return { urgent:'Urgent', high:'High', medium:'Medium', low:'Low' }[band];
   }
 
-  // ---- free-text ("NLP") search stand-in ----
-  // Real thing runs through the model's embeddings; this is just keyword overlap
-  // so the prototype behaves sensibly until that endpoint exists.
-  const STOPWORDS = new Set(['the','a','an','is','are','was','were','in','on','at','near','not',
-    'for','and','of','to','my','our','it','this','that','with','from','has','have','been',
-    'there','still','again','since','me','please','i','we','issue','problem']);
-
-  function scoreComplaints(query){
-    const terms = [...new Set(
-      query.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !STOPWORDS.has(t))
-    )];
-    const scores = new Map();
-    Object.entries(mockQueueComplaints).forEach(([id, d])=>{
-      const titleText = d.title.toLowerCase();
-      const wideText = `${d.body} ${d.category} ${d.department} ${d.authority}`.toLowerCase();
-      let score = 0;
-      terms.forEach(t=>{
-        if(titleText.includes(t)) score += 3;
-        else if(wideText.includes(t)) score += 1;
-      });
-      scores.set(id, score);
-    });
-    return scores;
-  }
-
-  // populate category filter from the data itself, so it never drifts out of sync
   const categorySelect = document.getElementById('categorySelect');
-  const categories = [...new Set(Object.values(mockQueueComplaints).map(d => d.category))].sort();
-  categories.forEach(cat=>{
+  CATEGORIES.forEach(cat=>{
     const opt = document.createElement('option');
     opt.value = cat; opt.textContent = cat;
     categorySelect.appendChild(opt);
@@ -446,9 +340,9 @@
   const statusSelect = document.getElementById('statusSelect');
   const clearFilterBtn = document.getElementById('clearFilter');
 
-  let nlpFilter = null; // when set (via search), queue + policies show keyword-ranked matches
+  let nlpFilter = null; // when set (via search), queue + policies show server-ranked matches
 
-  function buildDetail(id, d){
+  function buildDetail(d){
     const idx = stageOrder.indexOf(d.stage);
     const fillPct = (idx / (stageOrder.length - 1)) * 100;
     const nodesHtml = stageOrder.map((stage, i)=>{
@@ -487,76 +381,54 @@
     const category = categorySelect.value;
     const status = statusSelect.value;
 
-    let entries = Object.entries(mockQueueComplaints);
-    let matchScores = null;
-
-    if(nlpFilter){
-      matchScores = scoreComplaints(nlpFilter);
-      entries = entries.filter(([id]) => matchScores.get(id) > 0);
-    }
-    if(category !== 'all') entries = entries.filter(([,d]) => d.category === category);
-    if(status !== 'all') entries = entries.filter(([,d]) => d.stage === status);
-
-    entries.sort((a,b)=>{
-      if(matchScores){
-        const diff = matchScores.get(b[0]) - matchScores.get(a[0]);
-        if(diff !== 0) return diff;
-      }
-      if(sort === 'priority-desc') return b[1].priority - a[1].priority;
-      if(sort === 'newest') return b[1].filed.localeCompare(a[1].filed);
-      if(sort === 'oldest') return a[1].filed.localeCompare(b[1].filed);
-      return 0;
-    });
-
-    const maxScore = matchScores && entries.length ? Math.max(...entries.map(([id]) => matchScores.get(id))) : null;
-
-    queueCount.textContent = nlpFilter
-      ? `${entries.length} match${entries.length===1?'':'es'} for “${nlpFilter}”`
-      : `${entries.length} complaint${entries.length===1?'':'s'}`;
+    queueCount.textContent = 'Loading…';
     clearFilterBtn.style.display = nlpFilter ? 'inline' : 'none';
 
-    if(!entries.length){
-      queueList.innerHTML = nlpFilter
-        ? `<div class="empty-queue">No complaints match “${nlpFilter}”. Try different words, or file a new one.</div>`
-        : '<div class="empty-queue">No complaints match these filters.</div>';
-      return;
-    }
+    apiQueue({ q: nlpFilter || '', category, status, sort }).then(list=>{
+      queueCount.textContent = nlpFilter
+        ? `${list.length} match${list.length===1?'':'es'} for “${nlpFilter}”`
+        : `${list.length} complaint${list.length===1?'':'s'}`;
 
-    queueList.innerHTML = entries.map(([id, d])=>{
-      const band = priorityBand(d.priority);
-
-      let matchBadge = '';
-      if(matchScores){
-        const s = matchScores.get(id);
-        const ratio = maxScore ? s / maxScore : 0;
-        const label = ratio >= 0.75 ? 'Strong match' : ratio >= 0.4 ? 'Good match' : 'Partial match';
-        matchBadge = `<span class="qi-tag match">🔎 ${label}</span>`;
+      if(!list.length){
+        queueList.innerHTML = nlpFilter
+          ? `<div class="empty-queue">No complaints match “${nlpFilter}”. Try different words, or file a new one.</div>`
+          : '<div class="empty-queue">No complaints match these filters.</div>';
+        return;
       }
 
-      return `
-        <details class="queue-item" data-priority="${band}">
-          <summary>
-            <span class="qi-priority" data-priority="${band}">${priorityLabel(band)} · ${d.priority}</span>
-            <span class="qi-main">
-              <span class="qi-id-row">
-                <span class="stamp ${stampFor[d.stage]}">${labelFor[d.stage]}</span>
+      queueList.innerHTML = list.map(d=>{
+        const band = priorityBand(d.priority);
+        const matchBadge = d.matchLabel ? `<span class="qi-tag match">🔎 ${d.matchLabel}</span>` : '';
+        const langNative = LANG_NATIVE[d.language] || d.language;
+
+        return `
+          <details class="queue-item" data-priority="${band}">
+            <summary>
+              <span class="qi-priority" data-priority="${band}">${priorityLabel(band)} · ${d.priority}</span>
+              <span class="qi-main">
+                <span class="qi-id-row">
+                  <span class="stamp ${stampFor[d.stage]}">${labelFor[d.stage]}</span>
+                </span>
+                <div class="qi-title">${d.title}</div>
+                <div class="qi-tags">
+                  <span class="qi-tag">${d.category}</span>
+                  <span class="qi-tag">${d.department}</span>
+                  <span class="qi-tag lang">${langNative} · ${d.language}</span>
+                  ${matchBadge}
+                </div>
               </span>
-              <div class="qi-title">${d.title}</div>
-              <div class="qi-tags">
-                <span class="qi-tag">${d.category}</span>
-                <span class="qi-tag">${d.department}</span>
-                <span class="qi-tag lang">${d.languageNative} · ${d.language}</span>
-                ${matchBadge}
-              </div>
-            </span>
-            <span class="qi-right">
-              <span class="qi-date">${d.filedDisplay}</span>
-            </span>
-          </summary>
-          <div class="qi-detail">${buildDetail(id, d)}</div>
-        </details>
-      `;
-    }).join('');
+              <span class="qi-right">
+                <span class="qi-date">${d.filedDisplay}</span>
+              </span>
+            </summary>
+            <div class="qi-detail">${buildDetail(d)}</div>
+          </details>
+        `;
+      }).join('');
+    }).catch(err=>{
+      queueCount.textContent = '';
+      queueList.innerHTML = `<div class="empty-queue">${err.message}</div>`;
+    });
   }
 
   // ---- Relevant policies (PolicyGyaan) ----
@@ -566,11 +438,11 @@
   function renderPolicies(){
     let ranked;
     if(nlpFilter){
-      ranked = scorePolicies(nlpFilter).filter(r => r.score > 0);
+      ranked = scorePolicies(nlpFilter, CP_POLICIES).filter(r => r.score > 0);
       policySectionSub.textContent = ranked.length
         ? `Matched to “${nlpFilter}” — schemes and safeguards worth knowing about before you complain again.`
         : `No direct policy match for “${nlpFilter}” yet — here's what's generally relevant.`;
-      if(!ranked.length) ranked = scorePolicies('').slice(0, 3);
+      if(!ranked.length) ranked = scorePolicies('', CP_POLICIES).slice(0, 3);
     } else {
       ranked = CP_POLICIES.map(p => ({ policy:p, score:0 })).slice(0, 3);
       policySectionSub.textContent = 'Schemes and safeguards relevant to citizens right now — informing you before you need to complain.';

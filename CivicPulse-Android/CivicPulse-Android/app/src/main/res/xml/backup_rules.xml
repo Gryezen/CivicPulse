@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude the session cookie / server-url datastore from auto backup so a
+         restored device doesn't silently reuse another device's session. -->
+    <exclude domain="sharedpref" path="civicpulse_prefs.xml" />
+    <exclude domain="file" path="datastore/civicpulse_settings.preferences_pb" />
+</full-backup-content>

@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 
 from extensions import db, login_manager
 from auth import auth_bp
+from complaints import complaints_bp
 from policy_engine import PolicyRecommender, find_policy, load_policies
 
 load_dotenv()
@@ -51,6 +52,7 @@ login_manager.init_app(app)
 login_manager.login_view = "login"
 
 app.register_blueprint(auth_bp)
+app.register_blueprint(complaints_bp)
 
 
 @login_manager.user_loader
@@ -69,8 +71,33 @@ def unauthorized():
 
 
 with app.app_context():
-    from models import User  # noqa: F401  (registers the model with SQLAlchemy)
+    from datetime import datetime, timedelta, timezone
+    from models import User, Complaint  # noqa: F401  (registers models with SQLAlchemy)
+    from seed_data import DEMO_ACCOUNT, DEMO_QUEUE_COMPLAINTS
+
     db.create_all()
+
+    # Seed a handful of demo complaints (under a system "Demo Citizen" account)
+    # so the Complaints & Policies queue isn't empty on a fresh database.
+    # Real complaints from real accounts are added alongside these via the
+    # normal POST /api/complaints flow.
+    if Complaint.query.count() == 0:
+        demo_user = User.query.filter_by(email=DEMO_ACCOUNT["email"]).first()
+        if not demo_user:
+            demo_user = User(**DEMO_ACCOUNT)
+            demo_user.set_password(os.environ.get("DEMO_ACCOUNT_PASSWORD", "demo-account-not-for-login"))
+            db.session.add(demo_user)
+            db.session.commit()
+        now = datetime.now(timezone.utc)
+        for c in DEMO_QUEUE_COMPLAINTS:
+            db.session.add(Complaint(
+                user_id=demo_user.id,
+                title=c["title"], body=c["body"], language=c["language"],
+                category=c["category"], department=c["department"], authority=c["authority"],
+                priority=c["priority"], stage=c["stage"], files_count=c["files_count"],
+                note=c["note"], filed_at=now - timedelta(days=c["filed_offset_days"]),
+            ))
+        db.session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -86,22 +113,20 @@ ALL_POLICIES = load_policies()
 POLICY_RECOMMENDER = PolicyRecommender(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 
-# Every page maps 1:1 to a template — swap this for real routes/logic
-# once the backend team's Flask REST API is ready. Search each template
-# for `TODO(backend)` to find every spot that needs a real fetch() call.
+# Every page maps 1:1 to a template — dashboard/track/policy have their own
+# routes further down since they need extra Jinja context (policies_json
+# etc). Search each template for `TODO(backend)` to find any spot still
+# waiting on a real fetch() call.
 PAGES = {
     "index": "index.html",
     "login": "login.html",
     "complaint": "complaint.html",
-    "dashboard": "dashboard.html",
-    "track": "track.html",
     "account": "account.html",
-    "policy": "policy.html",
 }
 
 # Pages that require a logged-in session. Login-gated at the route level
 # (not just hidden in JS) so a signed-out visitor can't just load the HTML.
-PROTECTED_PAGES = {"complaint", "dashboard", "track", "account", "policy"}
+PROTECTED_PAGES = {"complaint", "account"}
 
 
 @app.route("/")
@@ -146,8 +171,14 @@ def _recommended_policies_json(limit=6):
     """Personalised recommendations for the logged-in citizen, rendered
     server-side and injected into the template as `const CP_POLICIES = ...`
     — this is what used to be the hardcoded array in static/main.js."""
-    complaints = []  # TODO(backend): swap for the citizen's real filed complaints
-    context_text = " ".join(c.get("title", "") for c in complaints)
+    from models import Complaint
+    complaints = (
+        Complaint.query.filter_by(user_id=current_user.id)
+        .order_by(Complaint.filed_at.desc())
+        .limit(20)
+        .all()
+    )
+    context_text = " ".join(c.title for c in complaints)
     policies = POLICY_RECOMMENDER.recommend(
         user=current_user.to_dict(),
         context_text=context_text,
