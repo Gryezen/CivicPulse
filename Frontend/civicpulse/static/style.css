@@ -20,6 +20,8 @@
   --text-hi:#1A1A1A;
   --text-mid:#4A4A46;
   --text-low:#6C6C64;
+  --Logo-green:#00C853;
+  --Logo-orange:#FF6A3D;
 
   /* tricolour-disciplined accents: used for meaning, not decoration */
   --saffron:#FF9933;
@@ -181,14 +183,14 @@ header.nav{
   font-size:1.3rem;
   letter-spacing:0;
   text-decoration:none;
-  color:var(--ink);
+  color:var(--Logo-green);
   display:flex;
   align-items:center;
   gap:10px;
   white-space:nowrap;
 }
 .emblem-mark{height:36px; width:auto; display:block;}
-.logo span{color:var(--navy);}
+.logo span{color:var(--Logo-orange);}
 .nav-links{
   display:flex;
   gap:28px;
