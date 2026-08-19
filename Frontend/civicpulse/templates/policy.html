@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Policy — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .policy-back{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:0.8rem; color:var(--text-mid); text-decoration:none; margin-bottom:22px;
+  }
+  .policy-back:hover{color:var(--navy);}
+
+  .policy-head{
+    background:var(--surface); border:2px solid var(--ink); border-radius:2px;
+    padding:30px 32px; margin-bottom:32px; position:relative; overflow:hidden;
+  }
+  .policy-head::before{
+    content:""; position:absolute; top:0; left:0; bottom:0; width:6px;
+    background:linear-gradient(var(--saffron), var(--white) 50%, var(--green));
+  }
+  .policy-source{font-family:var(--mono); font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--marigold); margin-bottom:10px;}
+  .policy-head h1{font-family:var(--display); font-weight:800; font-size:clamp(1.5rem,3vw,2rem); text-transform:none; margin-bottom:12px;}
+  .policy-head .summary{color:var(--text-mid); font-size:0.98rem; max-width:70ch;}
+  .policy-badges{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;}
+  .policy-badge{
+    font-family:var(--mono); font-size:0.72rem; letter-spacing:0.03em;
+    padding:4px 10px; border:1px solid var(--hairline-dark); border-radius:2px; color:var(--text-mid);
+  }
+
+  .policy-section{margin-bottom:36px;}
+  .policy-section h2{font-family:var(--display); font-weight:700; font-size:1.2rem; text-transform:none; margin-bottom:6px;}
+  .policy-section > p.sub{color:var(--text-mid); font-size:0.9rem; margin-bottom:20px;}
+
+  .eligibility-box{
+    background:var(--surface-2); border:1px solid var(--hairline); border-radius:2px;
+    padding:18px 20px; font-size:0.92rem; color:var(--text-mid);
+  }
+  .eligibility-box span{display:block; font-family:var(--mono); font-size:0.68rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-low); margin-bottom:8px;}
+
+  /* roadmap stepper */
+  .roadmap{position:relative; padding-left:2px;}
+  .roadmap-step{position:relative; padding:0 0 30px 46px;}
+  .roadmap-step:last-child{padding-bottom:0;}
+  .roadmap-step::before{
+    content:""; position:absolute; left:14px; top:30px; bottom:-6px; width:2px; background:var(--hairline);
+  }
+  .roadmap-step:last-child::before{display:none;}
+  .roadmap-dot{
+    position:absolute; left:0; top:0; width:30px; height:30px; border-radius:50%;
+    background:var(--surface); border:2px solid var(--hairline);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:0.74rem; color:var(--text-low);
+  }
+  .roadmap-step.done .roadmap-dot{border-color:var(--green); color:var(--green); background:rgba(15,122,31,0.08);}
+  .roadmap-step.current .roadmap-dot{border-color:var(--navy); color:var(--white); background:var(--navy);}
+  .roadmap-step.done::before{background:var(--green);}
+  .roadmap-phase{font-family:var(--display); font-weight:700; font-size:1rem; margin-bottom:4px;}
+  .roadmap-step.done .roadmap-phase{color:var(--green-dim);}
+  .roadmap-step.current .roadmap-phase{color:var(--navy);}
+  .roadmap-status{
+    display:inline-block; font-family:var(--mono); font-size:0.66rem; letter-spacing:0.06em; text-transform:uppercase;
+    margin-bottom:6px; color:var(--text-low);
+  }
+  .roadmap-step.done .roadmap-status{color:var(--green-dim);}
+  .roadmap-step.current .roadmap-status{color:var(--navy);}
+  .roadmap-detail{color:var(--text-mid); font-size:0.9rem;}
+
+  .policy-cta{
+    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    background:var(--surface); border:2px solid var(--ink); border-radius:2px; padding:22px 26px;
+  }
+  .policy-cta p{color:var(--text-mid); font-size:0.9rem; max-width:480px;}
+
+  .policy-not-found{text-align:center; padding:60px 20px; max-width:480px; margin:0 auto;}
+  .policy-not-found h2{font-family:var(--display); font-weight:700; text-transform:none; margin-bottom:10px;}
+  .policy-not-found p{color:var(--text-mid); margin-bottom:20px;}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <span>Text size</span>
+      <button type="button" id="fontDec" class="font-ctrl" aria-label="Decrease text size">A−</button>
+      <button type="button" id="fontReset" class="font-ctrl" aria-label="Reset text size">A</button>
+      <button type="button" id="fontInc" class="font-ctrl" aria-label="Increase text size">A+</button>
+      <span class="divider" aria-hidden="true">|</span>
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links" id="navLinksList">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="complaint.html">File complaint</a></li>
+      <li><a href="track.html" class="active">Complaints &amp; Policies</a></li>
+    </ul>
+    <div class="nav-right">
+      <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
+        <span></span><span></span><span></span>
+      </button>
+      <a href="account.html" class="nav-user">
+        <div class="nav-avatar">A</div>
+        <span>Anon Citizen</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap-narrow">
+    <a href="track.html" class="policy-back">← Back to Complaints &amp; Policies</a>
+
+    <div id="policyContent"></div>
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  // TODO(backend): replace CP_POLICIES (main.js) lookup with GET /api/policies/<slug>
+  const params = new URLSearchParams(window.location.search);
+  const slug = params.get('policy');
+  const policy = CP_POLICIES.find(p => p.slug === slug);
+  const content = document.getElementById('policyContent');
+
+  const statusLabel = { done:'Usually done for you', current:'Where most cases are', upcoming:'Next step' };
+
+  if(!policy){
+    content.innerHTML = `
+      <div class="policy-not-found">
+        <h2>Policy not found</h2>
+        <p>That link may be out of date. Browse the current recommendations from Complaints &amp; Policies instead.</p>
+        <a href="track.html" class="btn btn-primary">Back to Complaints &amp; Policies</a>
+      </div>`;
+  } else {
+    document.title = policy.title + ' — CivicPulse';
+    content.innerHTML = `
+      <div class="policy-head reveal">
+        <div class="policy-source">${policy.source}</div>
+        <h1>${policy.title}</h1>
+        <p class="summary">${policy.summary}</p>
+        <div class="policy-badges">
+          <span class="policy-badge">${policy.category}</span>
+        </div>
+      </div>
+
+      <div class="policy-section reveal">
+        <h2>Who it's for</h2>
+        <div class="eligibility-box">
+          <span>Eligibility</span>
+          ${policy.eligibility}
+        </div>
+      </div>
+
+      <div class="policy-section reveal">
+        <h2>Roadmap to implementation</h2>
+        <p class="sub">What actually happens after a related complaint or application goes in, step by step.</p>
+        <div class="roadmap">
+          ${policy.roadmap.map(step => `
+            <div class="roadmap-step ${step.status}">
+              <div class="roadmap-dot">${step.status === 'done' ? '✓' : ''}</div>
+              <div class="roadmap-status">${statusLabel[step.status] || ''}</div>
+              <div class="roadmap-phase">${step.phase}</div>
+              <div class="roadmap-detail">${step.detail}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="policy-cta reveal">
+        <div>
+          <b>Think this applies to you?</b>
+          <p>File a complaint mentioning your situation and PolicyGyaan will flag it against schemes like this one automatically.</p>
+        </div>
+        <a href="complaint.html" class="btn btn-primary">File a complaint →</a>
+      </div>
+    `;
+  }
+</script>
+</body>
+</html>

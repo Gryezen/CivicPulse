@@ -47,6 +47,7 @@
 
 *{margin:0;padding:0;box-sizing:border-box;}
 html{font-size:106%;} /* larger base size for legibility */
+html, body{max-width:100%; overflow-x:hidden;} /* safety net against any stray overflow on small screens */
 
 body{
   background:var(--paper);
@@ -112,6 +113,15 @@ a:hover{color:var(--navy-dark);}
   position:static; left:auto; color:var(--saffron); text-decoration:underline;
 }
 @media (max-width: 700px){ .gov-topbar-left{display:none;} }
+@media (max-width: 460px){
+  .gov-topbar-inner{gap:6px;}
+  .gov-topbar-right{gap:6px;}
+  .gov-topbar-right > span:not(.divider){display:none;} /* hide "Text size" label */
+  #screenReaderBtn{white-space:nowrap;}
+}
+@media (max-width: 360px){
+  #screenReaderBtn{display:none;} /* keep the strip on one line on very small phones */
+}
 
 /* ---------- LETTERHEAD (signature element) ---------- */
 .tricolour-rule{
@@ -241,7 +251,49 @@ a.nav-user:hover .nav-avatar{border-color:var(--navy);}
   font-size:0.8rem;
   color:var(--navy);
 }
-@media (max-width: 760px){ .nav-links{display:none;} }
+@media (max-width: 760px){
+  .nav-links{
+    position:absolute;
+    top:100%; left:0; right:0;
+    flex-direction:column;
+    gap:0;
+    background:var(--white);
+    border-bottom:2px solid var(--ink);
+    max-height:0;
+    overflow:hidden;
+    opacity:0;
+    padding:0 clamp(20px, 5vw, 56px);
+    transition:max-height 0.25s ease, opacity 0.2s ease;
+  }
+  header.nav.nav-open .nav-links{
+    max-height:320px; opacity:1; padding:8px clamp(20px, 5vw, 56px) 18px;
+  }
+  .nav-links li{width:100%;}
+  .nav-links a{display:block; padding:13px 0; border-bottom:1px solid var(--hairline);}
+  .nav-links li:last-child a{border-bottom:none;}
+  .nav-links a.active{text-decoration:none; color:var(--navy); font-weight:800;}
+}
+
+.nav-right{display:flex; align-items:center; gap:14px;}
+.nav-toggle{
+  display:none;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap:5px;
+  width:38px; height:38px;
+  flex-shrink:0;
+  background:var(--white);
+  border:2px solid var(--ink);
+  border-radius:2px;
+  cursor:pointer;
+  padding:0;
+}
+.nav-toggle span{display:block; width:16px; height:2px; background:var(--ink); transition:transform 0.2s ease, opacity 0.2s ease;}
+header.nav.nav-open .nav-toggle span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+header.nav.nav-open .nav-toggle span:nth-child(2){opacity:0;}
+header.nav.nav-open .nav-toggle span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+@media (max-width: 760px){ .nav-toggle{display:flex;} }
 
 /* ---------- BUTTONS ---------- */
 .btn{

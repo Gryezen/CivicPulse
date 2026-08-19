@@ -41,15 +41,20 @@
 <header class="nav">
   <div class="nav-inner">
     <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
-    <ul class="nav-links">
+    <ul class="nav-links" id="navLinksList">
       <li><a href="dashboard.html">Dashboard</a></li>
       <li><a href="complaint.html">File complaint</a></li>
       <li><a href="track.html">Track complaint</a></li>
     </ul>
-    <a href="account.html" class="nav-user">
-      <div class="nav-avatar" id="navAvatar">A</div>
-      <span id="navName">Anon Citizen</span>
-    </a>
+    <div class="nav-right">
+      <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
+        <span></span><span></span><span></span>
+      </button>
+      <a href="account.html" class="nav-user">
+        <div class="nav-avatar" id="navAvatar">A</div>
+        <span id="navName">Anon Citizen</span>
+      </a>
+    </div>
   </div>
 </header>
 
@@ -178,6 +183,11 @@
           <p class="error-msg">Passwords don't match.</p>
         </div>
       </div>
+      <div class="field" style="max-width:360px;">
+        <label for="ac-currentpass">Current password</label>
+        <input class="input" type="password" id="ac-currentpass" placeholder="Required to change your password">
+        <p class="error-msg">Enter your current password to confirm.</p>
+      </div>
       <p class="field-note">Only fill these in if you want to change your password.</p>
 
       <div class="settings-actions">
@@ -199,19 +209,23 @@
 
 <script src="main.js"></script>
 <script>
-  // ---- populate from the shared account store (see main.js) ----
-  const account = getAccount();
+  // ---- populate from cache immediately, then refresh from the server ----
+  // (this page is login-gated server-side, so the fetch below should
+  // always succeed — but paint from cache first so fields aren't empty
+  // for a beat while the request is in flight)
+  function paintForm(account){
+    document.getElementById('profileAvatar').textContent = accountInitial(account);
+    document.getElementById('profileName').textContent = accountDisplayName(account);
+    document.getElementById('profileEmail').textContent = account.email || 'No email on file yet';
 
-  document.getElementById('profileAvatar').textContent = accountInitial(account);
-  document.getElementById('profileName').textContent = accountDisplayName(account);
-  document.getElementById('profileEmail').textContent = account.email || 'No email on file yet';
-
-  document.getElementById('ac-name').value = account.name || '';
-  document.getElementById('ac-region').value = account.region || '';
-  document.getElementById('ac-edu').value = account.education || '';
-  document.getElementById('ac-occ').value = account.occupation || '';
-  document.getElementById('ac-lang').value = account.language || 'English';
-  document.getElementById('ac-email').value = account.email || '';
+    document.getElementById('ac-name').value = account.name || '';
+    document.getElementById('ac-region').value = account.region || '';
+    document.getElementById('ac-edu').value = account.education || '';
+    document.getElementById('ac-occ').value = account.occupation || '';
+    document.getElementById('ac-lang').value = account.language || 'English';
+    document.getElementById('ac-email').value = account.email || '';
+    setEmployToggle(account.employed !== false);
+  }
 
   // employment toggle — mirrors the one on the registration form
   const employToggle = document.getElementById('employToggle');
@@ -222,10 +236,12 @@
     });
     occupationField.classList.toggle('show', isEmployed);
   }
-  setEmployToggle(account.employed !== false);
   employToggle.querySelectorAll('button').forEach(btn=>{
     btn.addEventListener('click', ()=> setEmployToggle(btn.dataset.val === 'true'));
   });
+
+  paintForm(getAccount());
+  apiGet('/api/user/me').then(paintForm).catch(err=> showToast(err.message));
 
   // basic validation helper, same pattern as login.html
   function validateForm(form){
@@ -252,63 +268,89 @@
     note._t = setTimeout(()=> note.classList.remove('show'), 2200);
   }
 
-  // TODO(backend): PATCH /api/user/<userID>  { name, region, education, employment_status, current_occupation }
   document.getElementById('profileForm').addEventListener('submit', (e)=>{
     e.preventDefault();
     if(!validateForm(e.target)) return;
-    saveAccount({
+    apiUpdateAccount({
       name: document.getElementById('ac-name').value.trim(),
       region: document.getElementById('ac-region').value.trim(),
       education: document.getElementById('ac-edu').value,
       employed: employToggle.querySelector('button.active').dataset.val === 'true',
       occupation: document.getElementById('ac-occ').value.trim(),
-    });
-    document.getElementById('profileName').textContent = accountDisplayName(getAccount());
-    document.getElementById('profileAvatar').textContent = accountInitial(getAccount());
-    initNavUser();
-    showToast('Profile updated');
-    flashSaveNote('profileSaveNote');
+    }).then(updated=>{
+      document.getElementById('profileName').textContent = accountDisplayName(updated);
+      document.getElementById('profileAvatar').textContent = accountInitial(updated);
+      initNavUser();
+      showToast('Profile updated');
+      flashSaveNote('profileSaveNote');
+    }).catch(err=> showToast(err.message));
   });
 
-  // TODO(backend): PATCH /api/user/<userID>  { language }
   document.getElementById('langForm').addEventListener('submit', (e)=>{
     e.preventDefault();
-    saveAccount({ language: document.getElementById('ac-lang').value });
-    showToast('Language preference saved');
-    flashSaveNote('langSaveNote');
+    apiUpdateAccount({ language: document.getElementById('ac-lang').value })
+      .then(()=>{
+        showToast('Language preference saved');
+        flashSaveNote('langSaveNote');
+      }).catch(err=> showToast(err.message));
   });
 
-  // TODO(backend): PATCH /api/user/<userID>  { email } and, if provided, a separate
-  // auth endpoint for the password change — passwords are never stored client-side,
-  // so this demo can't actually verify or persist one.
   document.getElementById('securityForm').addEventListener('submit', (e)=>{
     e.preventDefault();
     if(!validateForm(e.target)) return;
 
     const newPass = document.getElementById('ac-newpass').value;
     const confirmPass = document.getElementById('ac-confirmpass').value;
+    const currentPass = document.getElementById('ac-currentpass').value;
     const confirmField = document.getElementById('ac-confirmpass');
+    const currentField = document.getElementById('ac-currentpass');
+    const newPassField = document.getElementById('ac-newpass');
+
+    if(newPass && newPass.length < 6){
+      newPassField.classList.add('field-error');
+      newPassField.closest('.field').querySelector('.error-msg').classList.add('show');
+      return;
+    }
+    newPassField.classList.remove('field-error');
+    newPassField.closest('.field').querySelector('.error-msg').classList.remove('show');
+
     if(newPass && newPass !== confirmPass){
       confirmField.classList.add('field-error');
       confirmField.closest('.field').querySelector('.error-msg').classList.add('show');
       return;
-    } else {
-      confirmField.classList.remove('field-error');
-      confirmField.closest('.field').querySelector('.error-msg').classList.remove('show');
     }
+    confirmField.classList.remove('field-error');
+    confirmField.closest('.field').querySelector('.error-msg').classList.remove('show');
 
-    saveAccount({ email: document.getElementById('ac-email').value.trim() });
-    document.getElementById('profileEmail').textContent = getAccount().email || 'No email on file yet';
-    document.getElementById('ac-newpass').value = '';
-    document.getElementById('ac-confirmpass').value = '';
-    showToast(newPass ? 'Email and password updated' : 'Email updated');
-    flashSaveNote('securitySaveNote');
+    if(newPass && !currentPass){
+      currentField.classList.add('field-error');
+      currentField.closest('.field').querySelector('.error-msg').classList.add('show');
+      return;
+    }
+    currentField.classList.remove('field-error');
+    currentField.closest('.field').querySelector('.error-msg').classList.remove('show');
+
+    const newEmail = document.getElementById('ac-email').value.trim();
+
+    Promise.resolve()
+      .then(()=> newPass ? apiChangePassword(currentPass, newPass) : null)
+      .then(()=> apiUpdateAccount({ email: newEmail }))
+      .then(updated=>{
+        document.getElementById('profileEmail').textContent = updated.email || 'No email on file yet';
+        document.getElementById('ac-newpass').value = '';
+        document.getElementById('ac-confirmpass').value = '';
+        document.getElementById('ac-currentpass').value = '';
+        showToast(newPass ? 'Email and password updated' : 'Email updated');
+        flashSaveNote('securitySaveNote');
+      })
+      .catch(err=> showToast(err.message));
   });
 
   document.getElementById('logoutBtn').addEventListener('click', ()=>{
-    clearAccount();
-    showToast('Logged out');
-    setTimeout(()=> window.location.href = 'login.html', 700);
+    apiLogout().finally(()=>{
+      showToast('Logged out');
+      setTimeout(()=> window.location.href = 'login.html', 700);
+    });
   });
 </script>
 </body>

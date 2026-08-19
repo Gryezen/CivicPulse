@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Priority queue — CivicPulse</title>
+<title>Complaints & Policies — CivicPulse</title>
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
@@ -211,15 +211,20 @@
 <header class="nav">
   <div class="nav-inner">
     <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
-    <ul class="nav-links">
+    <ul class="nav-links" id="navLinksList">
       <li><a href="dashboard.html">Dashboard</a></li>
       <li><a href="complaint.html">File complaint</a></li>
       <li><a href="track.html" class="active">Priority queue</a></li>
     </ul>
-    <a href="account.html" class="nav-user">
-      <div class="nav-avatar">A</div>
-      <span>Anon Citizen</span>
-    </a>
+    <div class="nav-right">
+      <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
+        <span></span><span></span><span></span>
+      </button>
+      <a href="account.html" class="nav-user">
+        <div class="nav-avatar">A</div>
+        <span>Anon Citizen</span>
+      </a>
+    </div>
   </div>
 </header>
 

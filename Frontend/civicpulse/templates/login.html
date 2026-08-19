@@ -137,9 +137,9 @@
     <div class="auth-side-grid" aria-hidden="true"></div>
     <div>
       <p class="eyebrow" style="margin-bottom:40px;">Citizen access</p>
-      <p class="auth-quote">Making policies<span class="accent">actually useful.</span></p>
+      <p class="auth-quote">Making policies<br><span class="accent">actually useful.</span></p>
       <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
-      <p class="auth-quote-sub">Sign in to file a new grievance, track existing ones by docket number, and get policy recommendations relevant to you.</p>
+      <p class="auth-quote-sub">Sign in to file a new grievance, follow its progress through NLP-powered search, and get the policies and schemes relevant to you — before you even have to ask.</p>
     </div>
     <div class="auth-stat-row">
       <div class="auth-stat"><b>&lt;30s</b><span>TO ROUTE</span></div>
@@ -306,32 +306,57 @@
     return valid;
   }
 
+  function nextUrl(){
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get('next');
+    // only ever follow a same-site relative path — never an absolute/external URL
+    return (next && next.startsWith('/')) ? next : 'dashboard.html';
+  }
+
+  function setBusy(form, busy){
+    const btn = form.querySelector('button[type="submit"]');
+    if(!btn) return;
+    btn.disabled = busy;
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.textContent = busy ? 'Please wait…' : btn.dataset.label;
+  }
+
   loginForm.addEventListener('submit', (e)=>{
     e.preventDefault();
     if(!validateForm(loginForm)) return;
-    // TODO(backend): POST /api/auth/  { email, password }
-    // Client-only stand-in: keep whatever profile is already stored for this device,
-    // just make sure the email on file matches what was typed at login.
-    saveAccount({ email: document.getElementById('li-email').value.trim() });
-    showToast('Logged in — redirecting to dashboard…');
-    setTimeout(()=> window.location.href = 'dashboard.html', 900);
+    setBusy(loginForm, true);
+    apiLogin(
+      document.getElementById('li-email').value.trim(),
+      document.getElementById('li-pass').value
+    ).then(()=>{
+      showToast('Logged in — redirecting…');
+      setTimeout(()=> window.location.href = nextUrl(), 700);
+    }).catch(err=>{
+      setBusy(loginForm, false);
+      showToast(err.message);
+    });
   });
 
   registerForm.addEventListener('submit', (e)=>{
     e.preventDefault();
     if(!validateForm(registerForm)) return;
-    // TODO(backend): POST /api/auth/  { name, email, password, region, employment_status, education, current_occupation, language }
-    saveAccount({
+    setBusy(registerForm, true);
+    apiRegister({
       name: document.getElementById('re-name').value.trim(),
       email: document.getElementById('re-email').value.trim(),
+      password: document.getElementById('re-pass').value,
       region: document.getElementById('re-region').value.trim(),
       education: document.getElementById('re-edu').value,
       employed: employToggle.querySelector('button.active').dataset.val === 'true',
       occupation: document.getElementById('re-occ').value.trim(),
       language: document.getElementById('re-lang').value,
+    }).then(()=>{
+      showToast('Account created — redirecting…');
+      setTimeout(()=> window.location.href = nextUrl(), 700);
+    }).catch(err=>{
+      setBusy(registerForm, false);
+      showToast(err.message);
     });
-    showToast('Account created — redirecting to dashboard…');
-    setTimeout(()=> window.location.href = 'dashboard.html', 900);
   });
 </script>
 </body>

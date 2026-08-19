@@ -10,7 +10,16 @@
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
 <style>
-  .hero{position:relative; padding:200px 0 96px; overflow:hidden;}
+  .hero{
+    position:relative; padding:200px 0 96px; overflow:hidden;
+    background:linear-gradient(180deg,
+      rgba(255,153,51,0.10) 0%,
+      rgba(255,153,51,0.03) 22%,
+      rgba(255,255,255,0) 45%,
+      rgba(255,255,255,0) 60%,
+      rgba(15,122,31,0.03) 80%,
+      rgba(15,122,31,0.09) 100%);
+  }
   .hero-grid{
     position:absolute; inset:0;
     background-image:linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
@@ -20,6 +29,22 @@
   }
   .hero-content{position:relative; z-index:2; max-width:820px;}
   .hero .eyebrow{margin-bottom:22px;}
+
+  .manifesto{position:relative; padding:64px 0; overflow:hidden; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);}
+  .manifesto-inner{position:relative; z-index:1; text-align:center;}
+  .manifesto .tri-underline{margin:0 auto 22px; }
+  .pull-quote{margin:0;}
+  .pull-quote p{
+    font-family:var(--display); font-weight:800; font-style:italic;
+    font-size:clamp(1.5rem, 3.2vw, 2.3rem); line-height:1.28;
+    color:var(--ink); text-transform:none; max-width:16ch; margin:0 auto;
+  }
+  @media (min-width:520px){ .pull-quote p{max-width:none;} }
+  .manifesto-sub{
+    margin-top:20px; color:var(--text-mid); font-size:0.98rem;
+    max-width:56ch; margin-left:auto; margin-right:auto;
+  }
+  .manifesto-sub em{color:var(--navy); font-style:normal; font-weight:700;}
   h1.headline{
     font-family:var(--display); font-weight:800;
     font-size:clamp(2.6rem, 6.4vw, 5.1rem);
@@ -114,13 +139,18 @@
 <header class="nav">
   <div class="nav-inner">
     <a href="#top" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
-    <ul class="nav-links">
+    <ul class="nav-links" id="navLinksList">
       <li><a href="#pillars">Why it's fast</a></li>
       <li><a href="#how">How it works</a></li>
       <li><a href="track.html">Track complaint</a></li>
       <li><a href="login.html">Log in</a></li>
     </ul>
-    <a class="nav-cta" href="login.html">File a complaint →</a>
+    <div class="nav-right">
+      <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
+        <span></span><span></span><span></span>
+      </button>
+      <a class="nav-cta" href="login.html">File a complaint →</a>
+    </div>
   </div>
 </header>
 
@@ -132,7 +162,7 @@
       <p class="eyebrow">Smart India Hackathon · PS97 · Citizen Grievance AI</p>
       <h1 class="headline">Every complaint<br>has a <span class="accent">pulse.</span><br>We read it live.</h1>
       <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
-      <p class="subhead">We post the right problem to the right people at the <strong>right time.</strong><br><br>CivicPulse triages, de-duplicates, and routes citizen grievances the moment they're filed — in the citizen's own language — so nothing waits in a queue that nobody's watching.</p>
+      <p class="subhead">CivicPulse triages, de-duplicates, and routes citizen grievances the moment they're filed — in the citizen's own language — so nothing waits in a queue that nobody's watching.</p>
       <div class="hero-ctas">
         <a href="#how" class="btn btn-primary">See how it works</a>
         <a href="login.html" class="btn btn-ghost">File a complaint</a>
@@ -152,6 +182,17 @@
     </div>
   </section>
 
+  <section class="manifesto reveal">
+    <img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-watermark" style="top:50%; left:50%; width:260px; height:260px; transform:translate(-50%,-50%);">
+    <div class="wrap-narrow manifesto-inner">
+      <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
+      <blockquote class="pull-quote">
+        <p>“We post the right problem to the right people at the right time.”</p>
+      </blockquote>
+      <p class="manifesto-sub">That's the PolicyGyaan principle — CivicPulse doesn't just route complaints after the fact, it surfaces the right scheme or safeguard <em>before</em> frustration turns into one.</p>
+    </div>
+  </section>
+
   <section class="pillars" id="pillars">
     <div class="wrap">
       <div class="section-head reveal">
@@ -164,19 +205,19 @@
           <p class="pillar-num">VITAL 01</p>
           <p class="pillar-readout">&lt;30<span class="unit">sec to route</span></p>
           <h3 class="pillar-title">Tracking</h3>
-          <p>Complaints are classified and forwarded to the right authority the instant they're filed — no manual sorting queue, no clerk deciding which desk it lands on.</p>
+          <p>Every complaint is timestamped, routed, and made trackable within 30 seconds — citizens get a live status instead of wondering if it vanished into a black hole.</p>
         </div>
         <div class="pillar-card accuracy">
           <p class="pillar-num">VITAL 02</p>
           <p class="pillar-readout">1 <span class="unit">case, not 40</span></p>
           <h3 class="pillar-title">Pruning</h3>
-          <p>NLP clustering merges near-identical complaints about the same pothole or pipeline into a single case, so officials see true scale instead of a flooded inbox.</p>
+          <p>NLP clustering prunes near-identical complaints about the same pothole or pipeline down to a single case, so officials see true scale instead of a flooded inbox.</p>
         </div>
         <div class="pillar-card transparency">
           <p class="pillar-num">VITAL 03</p>
           <p class="pillar-readout">0 <span class="unit">phone calls needed</span></p>
           <h3 class="pillar-title">Prevention</h3>
-          <p>Every citizen can check exactly where their complaint stands, in their own language, without ever calling a helpdesk or visiting an office.</p>
+          <p>PolicyGyaan surfaces the scheme or safeguard relevant to a citizen before frustration turns into a complaint — solving the problem upstream, not just tracking it downstream.</p>
         </div>
       </div>
     </div>

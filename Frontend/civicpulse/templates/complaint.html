@@ -39,12 +39,12 @@
   .mini-step b{display:block; font-size:0.86rem; font-weight:600;}
   .mini-step span{font-size:0.78rem; color:var(--text-low);}
 
-  .id-preview{
+  .track-note{
     margin-top:26px; padding:16px; border:1px dashed var(--hairline); border-radius:2px;
     text-align:center;
   }
-  .id-preview span{display:block; font-family:var(--mono); font-size:0.7rem; color:var(--text-low); letter-spacing:0.08em; margin-bottom:6px;}
-  .id-preview b{font-family:var(--mono); font-size:1.1rem; color:var(--marigold);}
+  .track-note span{display:block; font-family:var(--mono); font-size:0.7rem; color:var(--text-low); letter-spacing:0.08em; margin-bottom:6px;}
+  .track-note b{font-family:var(--body); font-weight:700; font-size:0.92rem; color:var(--ink);}
 
   /* success state */
   .success-card{display:none; text-align:center; padding:60px 30px;}
@@ -93,15 +93,20 @@
 <header class="nav">
   <div class="nav-inner">
     <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
-    <ul class="nav-links">
+    <ul class="nav-links" id="navLinksList">
       <li><a href="dashboard.html">Dashboard</a></li>
       <li><a href="complaint.html" class="active">File complaint</a></li>
       <li><a href="track.html">Track complaint</a></li>
     </ul>
-    <a href="account.html" class="nav-user">
-      <div class="nav-avatar">A</div>
-      <span>Anon Citizen</span>
-    </a>
+    <div class="nav-right">
+      <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
+        <span></span><span></span><span></span>
+      </button>
+      <a href="account.html" class="nav-user">
+        <div class="nav-avatar">A</div>
+        <span>Anon Citizen</span>
+      </a>
+    </div>
   </div>
 </header>
 
@@ -213,9 +218,9 @@
             <div><b>Resolved</b><span>You're notified the moment it's closed.</span></div>
           </div>
         </div>
-        <div class="id-preview">
-          <span>Your docket number</span>
-          <b id="idPreview">Assigned on submit</b>
+        <div class="track-note">
+          <span>Finding it later</span>
+          <b>No docket number to remember — just describe it in your own words and our NLP search finds it.</b>
         </div>
       </aside>
     </div>
@@ -224,7 +229,7 @@
     <section class="panel success-card reveal" id="successCard">
       <span class="stamp stamp-received">Received</span>
       <h2>Complaint filed</h2>
-      <p>Your docket is <strong id="successId">CP-0000</strong>. Track its status any time from the priority queue — no calls needed.</p>
+      <p>We've logged it as <strong id="successId">—</strong>. Track its status any time from Complaints &amp; Policies — just search for it in your own words, no number needed.</p>
 
       <div class="ai-result">
         <h3>NLP classification (automatic)</h3>
@@ -249,7 +254,7 @@
       </div>
 
       <div class="success-actions">
-        <a href="track.html" class="btn btn-primary" id="successTrackLink">Track this docket</a>
+        <a href="track.html" class="btn btn-primary" id="successTrackLink">Go to Complaints &amp; Policies</a>
         <button class="btn btn-ghost" id="fileAnother">File another complaint</button>
       </div>
     </section>
@@ -303,7 +308,10 @@
     return valid;
   }
 
-  function genDocketId(){
+  function genComplaintRef(){
+    // Internal reference only now — the citizen never sees or needs to note
+    // this down. Complaints are found later via NLP search on the title/body,
+    // not by an ID. TODO(backend): swap for whatever id POST /api/create/complaint returns.
     return 'CP-' + Math.floor(1000 + Math.random()*9000);
   }
 
@@ -364,22 +372,22 @@
     // TODO(backend): POST /api/create/complaint  → send `payload` as multipart/form-data with files
     console.log('complaint payload', payload);
 
-    const id = genDocketId();
+    const ref = genComplaintRef();
     const result = classifyComplaint(title, body);
     const band = priorityBand(result.priority);
 
-    successId.textContent = id;
+    successId.textContent = `"${title.length > 40 ? title.slice(0, 40) + '…' : title}"`;
     document.getElementById('aiCategory').textContent = result.category;
     document.getElementById('aiDepartment').textContent = result.department;
     document.getElementById('aiLanguage').textContent = language;
     const prioEl = document.getElementById('aiPriority');
     prioEl.textContent = `${band.label} · ${result.priority}/100`;
     prioEl.style.color = band.color;
-    document.getElementById('successTrackLink').href = 'track.html?id=' + id;
+    document.getElementById('successTrackLink').href = 'track.html';
 
     document.querySelectorAll('.complaint-layout').forEach(el=> el.style.display = 'none');
     successCard.classList.add('show');
-    showToast('Docket ' + id + ' created');
+    showToast('Complaint filed — ' + ref);
     window.scrollTo({top: successCard.offsetTop - 100, behavior:'smooth'});
   });
 
