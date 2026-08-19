@@ -14,6 +14,7 @@ Then open http://127.0.0.1:5000/
 See README.md for the Supabase + Render setup.
 """
 
+import json
 import os
 
 from flask import Flask, render_template, send_from_directory, jsonify, redirect, url_for, request
@@ -22,6 +23,7 @@ from dotenv import load_dotenv
 
 from extensions import db, login_manager
 from auth import auth_bp
+from policy_engine import PolicyRecommender, find_policy, load_policies
 
 load_dotenv()
 
@@ -69,6 +71,19 @@ def unauthorized():
 with app.app_context():
     from models import User  # noqa: F401  (registers the model with SQLAlchemy)
     db.create_all()
+
+
+# ---------------------------------------------------------------------------
+# PolicyGyaan bridge — see policy_engine.py.
+#
+# ALL_POLICIES replaces the hardcoded CP_POLICIES array that used to live in
+# static/main.js. POLICY_RECOMMENDER calls Gemini (google-genai) to rank
+# policies per-citizen the same way PolicyGyaan's PromptManager did, and
+# transparently falls back to keyword scoring if GOOGLE_API_KEY isn't set
+# or the call fails, so the pages never end up empty.
+# ---------------------------------------------------------------------------
+ALL_POLICIES = load_policies()
+POLICY_RECOMMENDER = PolicyRecommender(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 
 # Every page maps 1:1 to a template — swap this for real routes/logic
@@ -127,9 +142,63 @@ def _serve_page(page):
     return render_template(template)
 
 
+def _recommended_policies_json(limit=6):
+    """Personalised recommendations for the logged-in citizen, rendered
+    server-side and injected into the template as `const CP_POLICIES = ...`
+    — this is what used to be the hardcoded array in static/main.js."""
+    complaints = []  # TODO(backend): swap for the citizen's real filed complaints
+    context_text = " ".join(c.get("title", "") for c in complaints)
+    policies = POLICY_RECOMMENDER.recommend(
+        user=current_user.to_dict(),
+        context_text=context_text,
+        policies=ALL_POLICIES,
+        limit=limit,
+    )
+    return json.dumps(policies)
+
+
+@app.route("/dashboard")
+@app.route("/dashboard.html")
+@login_required
+def dashboard():
+    return render_template("dashboard.html", policies_json=_recommended_policies_json(limit=6))
+
+
+@app.route("/track")
+@app.route("/track.html")
+@login_required
+def track():
+    # The NLP search box on this page needs the full catalogue to search
+    # against, not just a personalised top-N, so it gets everything.
+    return render_template("track.html", all_policies_json=json.dumps(ALL_POLICIES))
+
+
+@app.route("/policy/<string:slug>")
+@login_required
+def policy_detail(slug):
+    policy = find_policy(slug, ALL_POLICIES)
+    return render_template("policy.html", policy=policy)
+
+
+@app.route("/api/policies")
+@login_required
+def api_policies():
+    return jsonify(ALL_POLICIES)
+
+
+@app.route("/api/policies/<string:slug>")
+@login_required
+def api_policy_detail(slug):
+    policy = find_policy(slug, ALL_POLICIES)
+    if policy is None:
+        return jsonify({"error": "Policy not found."}), 404
+    return jsonify(policy)
+
+
 @app.route("/<page>")
 def page(page):
-    """Clean URLs: /login, /complaint, /dashboard, /track, /account"""
+    """Clean URLs: /login, /complaint, /account (dashboard/track/policy have
+    their own routes above, since they need extra template context)."""
     if page == "login":
         return login()
     return _serve_page(page)

@@ -4,3 +4,8 @@ flask-sqlalchemy==3.1.1
 flask-login==0.6.3
 psycopg2-binary==2.9.10
 python-dotenv==1.0.1
+
+# PolicyGyaan bridge (policy_engine.py) — optional at runtime: if
+# GOOGLE_API_KEY isn't set, PolicyRecommender falls back to keyword scoring
+# and this package is never touched.
+google-genai==1.62.0

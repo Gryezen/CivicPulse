@@ -1,0 +1,93 @@
+{
+  "policies": [
+    {
+      "slug": "pm-awas-yojana",
+      "title": "PM Awas Yojana — Urban Housing Scheme",
+      "source": "PolicyGyaan",
+      "category": "Housing",
+      "summary": "Subsidised home loans for first-time urban homebuyers from low- and middle-income groups.",
+      "keywords": ["housing", "home", "rent", "shelter", "urban", "homeless", "house"],
+      "eligibility": "First-time homebuyers in EWS/LIG/MIG income brackets, urban households without a pucca house.",
+      "roadmap": [
+        { "phase": "Check eligibility", "detail": "Confirm your income bracket and that your household doesn't already own a pucca house.", "status": "done" },
+        { "phase": "Apply", "detail": "Submit via the PMAY-U portal or your nearest Common Service Centre with income and ID proof.", "status": "current" },
+        { "phase": "Verification", "detail": "Your Urban Local Body and lending bank verify documents and, often, the site — typically 4–6 weeks.", "status": "upcoming" },
+        { "phase": "Subsidy disbursed", "detail": "The interest subsidy is credited directly to your home loan account.", "status": "upcoming" }
+      ]
+    },
+    {
+      "slug": "msw-grievance-redressal",
+      "title": "Municipal Solid Waste Grievance Redressal",
+      "source": "PolicyGyaan",
+      "category": "Sanitation & Waste",
+      "summary": "The timeline SLAs your municipal corporation is legally bound to for garbage-collection complaints.",
+      "keywords": ["garbage", "waste", "trash", "sanitation", "collection", "dump", "bin"],
+      "eligibility": "Any resident within municipal corporation limits — no application needed, the SLA applies automatically.",
+      "roadmap": [
+        { "phase": "Complaint logged", "detail": "Your report is timestamped the moment it reaches the ward office.", "status": "done" },
+        { "phase": "24-hour acknowledgement", "detail": "The ward is required to acknowledge and schedule a collection run within 24 hours.", "status": "current" },
+        { "phase": "Collection within 72 hours", "detail": "Backlog clearance is mandated within 3 working days of the complaint.", "status": "upcoming" },
+        { "phase": "Repeat-offender escalation", "detail": "Wards missing the SLA three times in a quarter are flagged for corporation-level review.", "status": "upcoming" }
+      ]
+    },
+    {
+      "slug": "jal-jeevan-mission",
+      "title": "Jal Jeevan Mission — Piped Water Supply",
+      "source": "PolicyGyaan",
+      "category": "Water Supply",
+      "summary": "Guarantees functional household tap water; leaks and outages have a mandated repair window under the mission.",
+      "keywords": ["water", "pipeline", "tap", "supply", "leak", "shortage", "drink"],
+      "eligibility": "All households, with priority for areas lacking a functional household tap connection.",
+      "roadmap": [
+        { "phase": "Outage/leak reported", "detail": "Logged against the local Public Health Engineering division.", "status": "done" },
+        { "phase": "Site inspection", "detail": "A field engineer assesses the leak or supply gap, usually within 48 hours.", "status": "current" },
+        { "phase": "Repair or connection", "detail": "Pipeline repair or new household connection is carried out under the mission's funded works.", "status": "upcoming" },
+        { "phase": "Supply restored & logged", "detail": "Restoration is logged against the village/ward's functional household tap connection count.", "status": "upcoming" }
+      ]
+    },
+    {
+      "slug": "pmgsy-road-maintenance",
+      "title": "PMGSY — Road Maintenance & Pothole SLA",
+      "source": "PolicyGyaan",
+      "category": "Roads & Potholes",
+      "summary": "Defines how fast PWD must respond to potholes and road-safety hazards on notified roads.",
+      "keywords": ["pothole", "road", "highway", "tar", "accident", "crack", "footpath"],
+      "eligibility": "Applies to any PWD-notified road; report the exact stretch and nearest landmark for fastest routing.",
+      "roadmap": [
+        { "phase": "Hazard reported", "detail": "Location and severity logged against the nearest PWD division.", "status": "done" },
+        { "phase": "Risk classification", "detail": "Injury-risk and repeat-mention signals decide priority — accident-linked reports jump the queue.", "status": "current" },
+        { "phase": "Inspection & patching", "detail": "Field inspection and patching work, typically within 5 working days for high-priority reports.", "status": "upcoming" },
+        { "phase": "Quality re-check", "detail": "A follow-up inspection closes the case only once the patch has held through the next rain.", "status": "upcoming" }
+      ]
+    },
+    {
+      "slug": "saubhagya-electrification",
+      "title": "Saubhagya — Electrical Safety & Connections",
+      "source": "PolicyGyaan",
+      "category": "Electricity",
+      "summary": "Covers free/subsidised household electrification and safety response for exposed wiring or transformer faults.",
+      "keywords": ["electricity", "transformer", "power", "wire", "spark", "shock", "outage"],
+      "eligibility": "All households for safety response; free connections prioritised for below-poverty-line households.",
+      "roadmap": [
+        { "phase": "Fault reported", "detail": "Sparking, exposed wiring, or outage logged against the local Electricity Board division.", "status": "done" },
+        { "phase": "Emergency triage", "detail": "Fire/shock-risk keywords fast-track a field engineer dispatch, often same-day.", "status": "current" },
+        { "phase": "Repair", "detail": "Faulty equipment is repaired or replaced and the line is re-certified safe.", "status": "upcoming" },
+        { "phase": "Connection (if applicable)", "detail": "Eligible households without a connection are enrolled for free electrification under the scheme.", "status": "upcoming" }
+      ]
+    },
+    {
+      "slug": "smart-street-lighting",
+      "title": "Smart Street Lighting Maintenance Scheme",
+      "source": "PolicyGyaan",
+      "category": "Street Lighting",
+      "summary": "Ward-level SLA for streetlight repair, prioritised by pedestrian-safety and crime-report proximity.",
+      "keywords": ["streetlight", "light", "lamp", "bulb", "dark", "night"],
+      "eligibility": "Any public street within municipal limits.",
+      "roadmap": [
+        { "phase": "Outage reported", "detail": "Pole number and stretch logged against the Ward Office.", "status": "done" },
+        { "phase": "Cluster check", "detail": "Nearby reports are merged into one work order so a whole dark stretch is fixed in one visit.", "status": "current" },
+        { "phase": "Bulb/fixture replaced", "detail": "Routine maintenance visits typically close these within 48 hours.", "status": "upcoming" }
+      ]
+    }
+  ]
+}

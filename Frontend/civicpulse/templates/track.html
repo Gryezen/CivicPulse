@@ -294,6 +294,12 @@
 
 <script src="main.js"></script>
 <script>
+  // PolicyGyaan bridge (see policy_engine.py / app.py:track()) — the full
+  // policy catalogue, rendered server-side via Jinja, so the NLP search
+  // box below has everything to search against. Replaces the array that
+  // used to be hardcoded in static/main.js.
+  const CP_POLICIES = {{ all_policies_json|safe }};
+
   // TODO(backend): replace with a queue endpoint for the ranked list —
   // GET /api/admin/queue?sort=priority&category=&status= — returning items
   // shaped like `mockQueueComplaints` below (priority/category/department/
@@ -576,7 +582,7 @@
     }
 
     policyGrid.innerHTML = ranked.slice(0, 6).map(({policy})=> `
-      <a href="policy.html?policy=${policy.slug}" class="policy-card">
+      <a href="/policy/${policy.slug}" class="policy-card">
         <div class="policy-source">${policy.source} · ${policy.category}</div>
         <h4>${policy.title}</h4>
         <p>${policy.summary}</p>

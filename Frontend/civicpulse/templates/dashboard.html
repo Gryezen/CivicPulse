@@ -124,7 +124,7 @@
     <div class="section-block reveal">
       <div class="section-block-head">
         <h3>Recommended for you</h3>
-        <span class="eyebrow" style="font-size:0.68rem;">PolicyGyaan · Api /api/policies/</span>
+        <span class="eyebrow" style="font-size:0.68rem;">PolicyGyaan · /api/policies/</span>
       </div>
       <div id="policyList" class="policy-grid-dash"></div>
     </div>
@@ -163,6 +163,11 @@
 
 <script src="main.js"></script>
 <script>
+  // PolicyGyaan bridge (see policy_engine.py / app.py:dashboard()) — a
+  // real, per-citizen ranked list rendered server-side via Jinja. This
+  // replaces the array that used to be hardcoded in static/main.js.
+  const CP_POLICIES = {{ policies_json|safe }};
+
   // TODO(backend): replace with GET /api/admin/view/complaint/<userID> (or a citizen-scoped equivalent)
   const mockComplaints = [
     { id:'CP-4821', title:'Streetlight not working on 4th Cross Road', authority:'Municipal Corporation Services', filed:'12 Aug 2026', status:'processing' },
@@ -198,10 +203,13 @@
     }).join('');
   }
 
-  // "Recommended for you" — PolicyGyaan (see CP_POLICIES / scorePolicies in main.js).
-  // TODO(backend): replace with GET /api/policies/ scoped to the citizen's history.
-  // Stand-in personalization: score policies against the citizen's own filed
-  // complaints, so the grid reflects what's actually relevant to them.
+  // "Recommended for you" — PolicyGyaan. CP_POLICIES above is already a
+  // real, personalised (Gemini-ranked, or keyword-ranked as a fallback)
+  // top-N from the server for this citizen's profile — see
+  // policy_engine.py / app.py:dashboard(). This re-scores that same list
+  // against the citizen's filed complaints (still mocked below —
+  // TODO(backend): swap mockComplaints for real ones) so the grid reflects
+  // what's relevant *right now*, not just their static profile.
   function renderPolicies(complaintList){
     const el = document.getElementById('policyList');
     const combinedText = complaintList.map(c => c.title).join(' ');
@@ -214,7 +222,7 @@
       return;
     }
     el.innerHTML = list.map(p=>`
-      <a href="policy.html?policy=${p.slug}" class="policy-card">
+      <a href="/policy/${p.slug}" class="policy-card">
         <div class="policy-source">${p.source} · ${p.category}</div>
         <h4>${p.title}</h4>
         <p>${p.summary}</p>

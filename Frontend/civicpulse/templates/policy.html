@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Policy — CivicPulse</title>
+<title>{{ policy.title + ' — CivicPulse' if policy else 'Policy not found — CivicPulse' }}</title>
 <link rel="icon" href="img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
@@ -123,7 +123,56 @@
   <div class="wrap-narrow">
     <a href="track.html" class="policy-back">← Back to Complaints &amp; Policies</a>
 
-    <div id="policyContent"></div>
+    <div id="policyContent">
+      {% if policy %}
+      <div class="policy-head reveal">
+        <div class="policy-source">{{ policy.source }}</div>
+        <h1>{{ policy.title }}</h1>
+        <p class="summary">{{ policy.summary }}</p>
+        <div class="policy-badges">
+          <span class="policy-badge">{{ policy.category }}</span>
+        </div>
+      </div>
+
+      <div class="policy-section reveal">
+        <h2>Who it's for</h2>
+        <div class="eligibility-box">
+          <span>Eligibility</span>
+          {{ policy.eligibility }}
+        </div>
+      </div>
+
+      <div class="policy-section reveal">
+        <h2>Roadmap to implementation</h2>
+        <p class="sub">What actually happens after a related complaint or application goes in, step by step.</p>
+        <div class="roadmap">
+          {% set status_label = {'done': 'Usually done for you', 'current': 'Where most cases are', 'upcoming': 'Next step'} %}
+          {% for step in policy.roadmap %}
+          <div class="roadmap-step {{ step.status }}">
+            <div class="roadmap-dot">{{ '✓' if step.status == 'done' else '' }}</div>
+            <div class="roadmap-status">{{ status_label.get(step.status, '') }}</div>
+            <div class="roadmap-phase">{{ step.phase }}</div>
+            <div class="roadmap-detail">{{ step.detail }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="policy-cta reveal">
+        <div>
+          <b>Think this applies to you?</b>
+          <p>File a complaint mentioning your situation and PolicyGyaan will flag it against schemes like this one automatically.</p>
+        </div>
+        <a href="complaint.html" class="btn btn-primary">File a complaint →</a>
+      </div>
+      {% else %}
+      <div class="policy-not-found">
+        <h2>Policy not found</h2>
+        <p>That link may be out of date. Browse the current recommendations from Complaints &amp; Policies instead.</p>
+        <a href="track.html" class="btn btn-primary">Back to Complaints &amp; Policies</a>
+      </div>
+      {% endif %}
+    </div>
   </div>
 </main>
 
@@ -136,66 +185,5 @@
 </footer>
 
 <script src="main.js"></script>
-<script>
-  // TODO(backend): replace CP_POLICIES (main.js) lookup with GET /api/policies/<slug>
-  const params = new URLSearchParams(window.location.search);
-  const slug = params.get('policy');
-  const policy = CP_POLICIES.find(p => p.slug === slug);
-  const content = document.getElementById('policyContent');
-
-  const statusLabel = { done:'Usually done for you', current:'Where most cases are', upcoming:'Next step' };
-
-  if(!policy){
-    content.innerHTML = `
-      <div class="policy-not-found">
-        <h2>Policy not found</h2>
-        <p>That link may be out of date. Browse the current recommendations from Complaints &amp; Policies instead.</p>
-        <a href="track.html" class="btn btn-primary">Back to Complaints &amp; Policies</a>
-      </div>`;
-  } else {
-    document.title = policy.title + ' — CivicPulse';
-    content.innerHTML = `
-      <div class="policy-head reveal">
-        <div class="policy-source">${policy.source}</div>
-        <h1>${policy.title}</h1>
-        <p class="summary">${policy.summary}</p>
-        <div class="policy-badges">
-          <span class="policy-badge">${policy.category}</span>
-        </div>
-      </div>
-
-      <div class="policy-section reveal">
-        <h2>Who it's for</h2>
-        <div class="eligibility-box">
-          <span>Eligibility</span>
-          ${policy.eligibility}
-        </div>
-      </div>
-
-      <div class="policy-section reveal">
-        <h2>Roadmap to implementation</h2>
-        <p class="sub">What actually happens after a related complaint or application goes in, step by step.</p>
-        <div class="roadmap">
-          ${policy.roadmap.map(step => `
-            <div class="roadmap-step ${step.status}">
-              <div class="roadmap-dot">${step.status === 'done' ? '✓' : ''}</div>
-              <div class="roadmap-status">${statusLabel[step.status] || ''}</div>
-              <div class="roadmap-phase">${step.phase}</div>
-              <div class="roadmap-detail">${step.detail}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <div class="policy-cta reveal">
-        <div>
-          <b>Think this applies to you?</b>
-          <p>File a complaint mentioning your situation and PolicyGyaan will flag it against schemes like this one automatically.</p>
-        </div>
-        <a href="complaint.html" class="btn btn-primary">File a complaint →</a>
-      </div>
-    `;
-  }
-</script>
 </body>
 </html>
