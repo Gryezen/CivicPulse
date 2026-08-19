@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ policy.title + ' — CivicPulse' if policy else 'Policy not found — CivicPulse' }}</title>
-<link rel="icon" href="img/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
-<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-<link rel="stylesheet" href="style.css">
+<link rel="icon" href="/img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/style.css">
 <style>
   .policy-back{
     display:inline-flex; align-items:center; gap:6px;
@@ -101,17 +101,17 @@
 
 <header class="nav">
   <div class="nav-inner">
-    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <a href="/" class="logo"><img src="/img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
     <ul class="nav-links" id="navLinksList">
-      <li><a href="dashboard.html">Dashboard</a></li>
-      <li><a href="complaint.html">File complaint</a></li>
-      <li><a href="track.html" class="active">Complaints &amp; Policies</a></li>
+      <li><a href="/dashboard">Dashboard</a></li>
+      <li><a href="/complaint">File complaint</a></li>
+      <li><a href="/track" class="active">Complaints &amp; Policies</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
         <span></span><span></span><span></span>
       </button>
-      <a href="account.html" class="nav-user">
+      <a href="/account" class="nav-user">
         <div class="nav-avatar">A</div>
         <span>Anon Citizen</span>
       </a>
@@ -121,7 +121,7 @@
 
 <main class="page-shell" id="main">
   <div class="wrap-narrow">
-    <a href="track.html" class="policy-back">← Back to Complaints &amp; Policies</a>
+    <a href="/track" class="policy-back">← Back to Complaints &amp; Policies</a>
 
     <div id="policyContent">
       {% if policy %}
@@ -163,13 +163,13 @@
           <b>Think this applies to you?</b>
           <p>File a complaint mentioning your situation and PolicyGyaan will flag it against schemes like this one automatically.</p>
         </div>
-        <a href="complaint.html" class="btn btn-primary">File a complaint →</a>
+        <a href="/complaint" class="btn btn-primary">File a complaint →</a>
       </div>
       {% else %}
       <div class="policy-not-found">
         <h2>Policy not found</h2>
         <p>That link may be out of date. Browse the current recommendations from Complaints &amp; Policies instead.</p>
-        <a href="track.html" class="btn btn-primary">Back to Complaints &amp; Policies</a>
+        <a href="/track" class="btn btn-primary">Back to Complaints &amp; Policies</a>
       </div>
       {% endif %}
     </div>
@@ -178,12 +178,12 @@
 
 <footer class="meta">
   <div class="wrap meta-inner">
-    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <span class="meta-brand"><img src="/img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
     <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
     <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
   </div>
 </footer>
 
-<script src="main.js"></script>
+<script src="/main.js"></script>
 </body>
 </html>
