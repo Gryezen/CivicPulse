@@ -5,6 +5,13 @@ flask-login==0.6.3
 psycopg2-binary==2.9.10
 python-dotenv==1.0.1
 
+# classify.py v2 — TF-IDF + Logistic Regression classifier bundle, trained
+# offline by train_classifier.py. See classify.py's docstring: the app
+# still runs and falls back to keyword rules if these aren't installed or
+# classifier_model.joblib is missing.
+scikit-learn==1.5.2
+joblib==1.4.2
+
 # PolicyGyaan bridge (policy_engine.py) — optional at runtime: if
 # GOOGLE_API_KEY isn't set, PolicyRecommender falls back to keyword scoring
 # and this package is never touched.

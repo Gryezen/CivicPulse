@@ -24,7 +24,8 @@ from dotenv import load_dotenv
 from extensions import db, login_manager
 from auth import auth_bp
 from complaints import complaints_bp
-from policy_engine import PolicyRecommender, find_policy, load_policies
+from officer import officer_bp
+from policy_engine import PolicyRecommender, find_policy, load_policies, seed_policies_if_empty
 
 load_dotenv()
 
@@ -53,6 +54,7 @@ login_manager.login_view = "login"
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(complaints_bp)
+app.register_blueprint(officer_bp)
 
 
 @login_manager.user_loader
@@ -70,12 +72,59 @@ def unauthorized():
     return redirect(url_for("login", next=request.path))
 
 
+def _ensure_new_columns():
+    """db.create_all() only creates tables that don't exist yet — it never
+    ALTERs an existing one. That's fine for a brand-new Supabase project,
+    but this app's `complaints` table already existed (and had real rows)
+    in Supabase before the confidence/needs_review/corruption_flag/
+    threat_flag columns were added to the model. This adds them if missing,
+    so the same codebase works against a fresh DB and an already-seeded
+    Supabase project without a manual migration step.
+
+    Postgres supports "ADD COLUMN IF NOT EXISTS" directly. Guarded in a
+    try/except anyway (and per-column, not one big statement) so one
+    column already existing — or sqlite's older ALTER syntax — can't abort
+    the rest.
+    """
+    from sqlalchemy import text
+
+    statements = [
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS confidence FLOAT",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS needs_review BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS corruption_flag BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS threat_flag BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS broad_category VARCHAR(60) NOT NULL DEFAULT 'General Governance'",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS audit_tier BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS auto_resolved BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS ai_brief VARCHAR(240)",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS assigned_officer VARCHAR(160)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'citizen'",
+    ]
+    for stmt in statements:
+        try:
+            db.session.execute(text(stmt))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()  # sqlite (no IF NOT EXISTS support) or column already there — safe to skip
+
+
 with app.app_context():
     from datetime import datetime, timedelta, timezone
-    from models import User, Complaint  # noqa: F401  (registers models with SQLAlchemy)
-    from seed_data import DEMO_ACCOUNT, DEMO_QUEUE_COMPLAINTS
+    from models import User, Complaint, ClassificationLog, Policy  # noqa: F401  (registers models with SQLAlchemy)
+    from seed_data import DEMO_ACCOUNT, DEMO_OFFICER_ACCOUNT, DEMO_QUEUE_COMPLAINTS, dataset_sample_complaints
 
     db.create_all()
+    _ensure_new_columns()
+    seed_policies_if_empty()
+
+    # Officer demo login — seeded independently of the complaint-seeding
+    # block below (account existence shouldn't depend on whether complaints
+    # happen to be empty). Safe to run every boot: only inserts if missing.
+    if User.query.filter_by(email=DEMO_OFFICER_ACCOUNT["email"]).first() is None:
+        officer_user = User(**DEMO_OFFICER_ACCOUNT)
+        officer_user.set_password(os.environ.get("DEMO_OFFICER_PASSWORD", "demo-officer-not-for-login"))
+        db.session.add(officer_user)
+        db.session.commit()
 
     # Seed a handful of demo complaints (under a system "Demo Citizen" account)
     # so the Complaints & Policies queue isn't empty on a fresh database.
@@ -97,6 +146,19 @@ with app.app_context():
                 priority=c["priority"], stage=c["stage"], files_count=c["files_count"],
                 note=c["note"], filed_at=now - timedelta(days=c["filed_offset_days"]),
             ))
+        # Real rows from the simulated dataset, run through the actual
+        # classify() — proves out the model + corruption/threat flags +
+        # needs-review bucket with more than 9 hand-written examples.
+        for c in dataset_sample_complaints():
+            db.session.add(Complaint(
+                user_id=demo_user.id,
+                title=c["title"], body=c["body"], language=c["language"],
+                category=c["category"], department=c["department"], authority=c["authority"],
+                priority=c["priority"], stage=c["stage"], files_count=c["files_count"],
+                note=c["note"], filed_at=now - timedelta(days=c["filed_offset_days"]),
+                confidence=c["confidence"], needs_review=c["needs_review"],
+                corruption_flag=c["corruption_flag"], threat_flag=c["threat_flag"],
+            ))
         db.session.commit()
 
 
@@ -109,7 +171,8 @@ with app.app_context():
 # transparently falls back to keyword scoring if GOOGLE_API_KEY isn't set
 # or the call fails, so the pages never end up empty.
 # ---------------------------------------------------------------------------
-ALL_POLICIES = load_policies()
+with app.app_context():
+    ALL_POLICIES = load_policies()  # now a DB read (see policy_engine.load_policies) — needs app context
 POLICY_RECOMMENDER = PolicyRecommender(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 
@@ -188,7 +251,15 @@ def _recommended_policies_json(limit=6):
     return json.dumps(policies)
 
 
-@app.route("/dashboard")
+@app.route("/officer")
+@app.route("/officer.html")
+@login_required
+def officer_dashboard():
+    if not current_user.is_official:
+        return render_template("index.html"), 403
+    return render_template("officer.html")
+
+
 @app.route("/dashboard.html")
 @login_required
 def dashboard():

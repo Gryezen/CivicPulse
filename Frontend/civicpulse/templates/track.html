@@ -134,6 +134,9 @@
     white-space:nowrap;
   }
   .qi-tag.lang{color:var(--navy); border-color:var(--navy);}
+  .qi-tag.review{color:var(--text-low); border-color:var(--hairline-dark); border-style:dashed;}
+  .qi-tag.corruption{color:var(--navy); border-color:var(--navy); font-weight:700;}
+  .qi-tag.threat{color:var(--red); border-color:var(--red); font-weight:700;}
   .qi-right{display:flex; flex-direction:column; align-items:flex-end; gap:6px; text-align:right;}
   .qi-date{font-family:var(--mono); font-size:0.74rem; color:var(--text-low);}
   @media (max-width:640px){
@@ -206,6 +209,7 @@
       <li><a href="dashboard.html">Dashboard</a></li>
       <li><a href="complaint.html">File complaint</a></li>
       <li><a href="track.html" class="active">Complaints &amp; Policies</a></li>
+      <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
@@ -399,6 +403,9 @@
       queueList.innerHTML = list.map(d=>{
         const band = priorityBand(d.priority);
         const matchBadge = d.matchLabel ? `<span class="qi-tag match">🔎 ${d.matchLabel}</span>` : '';
+        const reviewBadge = d.needsReview ? `<span class="qi-tag review">🕵️ Needs human review</span>` : '';
+        const corruptionBadge = d.corruptionFlag ? `<span class="qi-tag corruption">⚖️ Vigilance channel</span>` : '';
+        const threatBadge = d.threatFlag ? `<span class="qi-tag threat">🚨 Safety escalation</span>` : '';
         const langNative = LANG_NATIVE[d.language] || d.language;
 
         return `
@@ -414,6 +421,9 @@
                   <span class="qi-tag">${d.category}</span>
                   <span class="qi-tag">${d.department}</span>
                   <span class="qi-tag lang">${langNative} · ${d.language}</span>
+                  ${reviewBadge}
+                  ${corruptionBadge}
+                  ${threatBadge}
                   ${matchBadge}
                 </div>
               </span>

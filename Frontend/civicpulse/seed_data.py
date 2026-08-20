@@ -7,9 +7,27 @@ under a "demo citizen" system account so the public queue on
 Complaints & Policies isn't empty on a fresh database. Real complaints
 filed by real accounts show up alongside these.
 
+dataset_sample_complaints() supplements those hand-written rows with real
+rows sampled from data/grievance_simulated_dataset.csv, run through the
+*actual* classify() (see classify.py) — including the corruption/threat
+flags and low-confidence "Needs Human Review" bucket — so the demo queue
+shows the new classifier really working, not just the hand-authored
+examples above.
+
 (Policy data used to be seeded here too — it now lives in
-policies_data.json, served through policy_engine.py.)
+policies_data.json, seeded into the `policies` table by
+policy_engine.seed_policies_if_empty().)
 """
+
+import csv
+import os
+import random
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_CSV_PATH = os.path.join(_HERE, "data", "grievance_simulated_dataset.csv")
+
+_LANGUAGES = ["English", "Hindi", "Tamil", "Telugu", "Kannada", "Bengali", "Marathi"]
+_STAGES = ["received", "processing", "assigned", "resolved"]
 
 DEMO_ACCOUNT = {
     "name": "Demo Citizen",
@@ -19,6 +37,23 @@ DEMO_ACCOUNT = {
     "employed": True,
     "occupation": "Demo account",
     "language": "English",
+    "role": "citizen",
+}
+
+# For demoing /officer — a real deployment gates this role via department
+# SSO/directory, not a signup form; this account exists purely so judges/
+# reviewers can log in and see the officer dashboard without a manual DB
+# edit. Password set via DEMO_OFFICER_PASSWORD env var, same pattern as
+# DEMO_ACCOUNT_PASSWORD.
+DEMO_OFFICER_ACCOUNT = {
+    "name": "Duty Officer",
+    "email": "officer@civicpulse.local",
+    "region": "Chennai, TN",
+    "education": "Postgraduate",
+    "employed": True,
+    "occupation": "Ward Grievance Officer",
+    "language": "English",
+    "role": "official",
 }
 
 # (title, body, category, department, authority, language, priority, stage, filed_at, files, note)
@@ -78,3 +113,63 @@ DEMO_QUEUE_COMPLAINTS = [
          filed_offset_days=11, files_count=0,
          note="Resolved — bulb replaced during routine ward maintenance."),
 ]
+
+
+def dataset_sample_complaints(n_general=18, n_corruption=6, n_threat=6, seed=42):
+    """Sample rows from the simulated dataset, run them through classify(),
+    and shape them like DEMO_QUEUE_COMPLAINTS entries. Imports classify()
+    lazily (only called from inside app.py's app-context startup block) to
+    avoid a hard dependency for anything that imports seed_data.py without
+    needing this.
+    """
+    from classify import classify
+
+    if not os.path.exists(_CSV_PATH):
+        return []
+
+    with open(_CSV_PATH, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    rng = random.Random(seed)
+    corruption_rows = [r for r in rows if "corruption_flag" in r["suggested_workflow"]]
+    threat_rows = [r for r in rows if "threat_flag" in r["suggested_workflow"]]
+    general_rows = [r for r in rows if r not in corruption_rows and r not in threat_rows]
+
+    picked = (
+        rng.sample(general_rows, min(n_general, len(general_rows)))
+        + rng.sample(corruption_rows, min(n_corruption, len(corruption_rows)))
+        + rng.sample(threat_rows, min(n_threat, len(threat_rows)))
+    )
+
+    out = []
+    for row in picked:
+        title = row["case_name"].split(":", 1)[-1].strip() or row["case_name"]
+        body = row["complaint_description"]
+        result = classify(title, body)
+
+        note = "Filed — queued for AI triage."
+        if result.get("needs_review"):
+            note = "Below the model's confidence threshold — held for human review rather than auto-routed."
+        elif result.get("corruption_flag"):
+            note = "Routed to Vigilance / Anti-Corruption; rerouted away from the named office; complainant identity withheld."
+        elif result.get("threat_flag"):
+            note = "Flagged for urgent safety review — bypassed the standard SLA queue."
+
+        out.append(dict(
+            title=title[:300],
+            body=body,
+            category=result["category"],
+            department=result["department"],
+            authority=result["authority"],
+            language=rng.choice(_LANGUAGES),
+            priority=result["priority"],
+            stage=rng.choice(_STAGES),
+            filed_offset_days=rng.randint(0, 30),
+            files_count=rng.randint(0, 3),
+            note=note,
+            confidence=result.get("confidence"),
+            needs_review=bool(result.get("needs_review")),
+            corruption_flag=bool(result.get("corruption_flag")),
+            threat_flag=bool(result.get("threat_flag")),
+        ))
+    return out

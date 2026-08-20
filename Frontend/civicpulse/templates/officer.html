@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Officer Dashboard — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+<style>
+  .off-head{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    margin-bottom:32px;
+  }
+  .off-head h1{font-family:var(--display); font-weight:800; font-size:clamp(1.8rem,3.4vw,2.5rem); text-transform:none;}
+  .off-head p{color:var(--text-mid); margin-top:8px; max-width:620px;}
+
+  /* ---------- STAT STRIP ---------- */
+  .stat-row{display:grid; grid-template-columns:repeat(6, 1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:2px; overflow:hidden; margin-bottom:28px;}
+  @media (max-width: 1000px){ .stat-row{grid-template-columns:repeat(3, 1fr);} }
+  @media (max-width: 560px){ .stat-row{grid-template-columns:repeat(2, 1fr);} }
+  .stat-cell{background:var(--surface); padding:18px 16px;}
+  .stat-cell .n{font-family:var(--mono); font-size:1.7rem; font-weight:600;}
+  .stat-cell .l{font-family:var(--mono); font-size:0.66rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-low); margin-top:4px;}
+  .stat-cell.total .n{color:var(--text-hi);}
+  .stat-cell.review .n{color:var(--text-low);}
+  .stat-cell.corruption .n{color:var(--navy);}
+  .stat-cell.threat .n{color:var(--red);}
+  .stat-cell.audit .n{color:var(--red-dim);}
+  .stat-cell.auto .n{color:var(--green);}
+
+  /* ---------- BROAD-CATEGORY BAR ---------- */
+  .broad-row{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:36px;}
+  .broad-chip{
+    flex:1; min-width:160px;
+    background:var(--surface); border:1px solid var(--hairline-dark); border-radius:2px;
+    padding:12px 14px; cursor:pointer; text-align:left;
+    font-family:var(--body);
+  }
+  .broad-chip:hover, .broad-chip.active{border-color:var(--navy);}
+  .broad-chip.active{background:var(--surface-2);}
+  .broad-chip .bc-n{font-family:var(--mono); font-weight:700; font-size:1.2rem;}
+  .broad-chip .bc-l{font-size:0.76rem; color:var(--text-mid); margin-top:2px;}
+
+  /* ---------- TOOLBAR ---------- */
+  .off-toolbar{
+    display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+    margin:8px 0 18px; padding-bottom:14px; border-bottom:2px solid var(--ink);
+  }
+  .off-toolbar .tb-field{display:flex; flex-direction:column; gap:5px;}
+  .off-toolbar label{font-size:0.74rem; font-weight:700; color:var(--text-mid);}
+  .off-toolbar select{
+    background:var(--white); border:2px solid var(--hairline-dark); border-radius:2px;
+    padding:7px 28px 7px 9px; font-family:var(--body); font-size:0.84rem; color:var(--ink); appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231A1A1A' stroke-width='1.8' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 9px center;
+  }
+  .off-toolbar select:focus{outline:none; border-color:var(--navy);}
+  .off-check{display:flex; align-items:center; gap:6px; font-size:0.82rem; color:var(--text-mid); margin-top:18px;}
+  .off-count{margin-left:auto; font-family:var(--mono); font-size:0.8rem; color:var(--text-mid);}
+
+  /* ---------- BULK BAR ---------- */
+  .bulk-bar{
+    display:none; align-items:center; gap:12px; flex-wrap:wrap;
+    background:var(--ink); color:var(--white); border-radius:2px; padding:10px 16px; margin-bottom:16px;
+  }
+  .bulk-bar.show{display:flex;}
+  .bulk-bar .bulk-count{font-family:var(--mono); font-size:0.84rem;}
+  .bulk-bar .btn{padding:7px 14px; font-size:0.8rem;}
+
+  /* ---------- QUEUE ---------- */
+  .off-list{display:flex; flex-direction:column; gap:10px; margin-bottom:40px;}
+  .off-row{
+    background:var(--white); border:2px solid var(--ink); border-left-width:8px; border-radius:2px;
+  }
+  .off-row[data-priority="urgent"]{border-left-color:var(--red);}
+  .off-row[data-priority="high"]{border-left-color:var(--saffron-dim);}
+  .off-row[data-priority="medium"]{border-left-color:var(--navy);}
+  .off-row[data-priority="low"]{border-left-color:var(--hairline-dark);}
+  .off-row summary{
+    list-style:none; cursor:pointer; display:flex; align-items:flex-start; gap:14px;
+    padding:14px 16px;
+  }
+  .off-row summary::-webkit-details-marker{display:none;}
+  .off-check-box{margin-top:4px; width:16px; height:16px; flex-shrink:0;}
+  .off-priority{font-family:var(--mono); font-weight:700; font-size:0.8rem; white-space:nowrap; padding-top:2px;}
+  .off-priority[data-priority="urgent"]{color:var(--red);}
+  .off-priority[data-priority="high"]{color:var(--saffron-dim);}
+  .off-priority[data-priority="medium"]{color:var(--navy);}
+  .off-priority[data-priority="low"]{color:var(--text-low);}
+  .off-main{min-width:0; flex:1;}
+  .off-brief{font-weight:700; font-size:0.94rem; line-height:1.4;}
+  .off-title{color:var(--text-mid); font-size:0.84rem; margin-top:3px;}
+  .off-tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .off-tag{
+    font-family:var(--mono); font-size:0.68rem; letter-spacing:0.02em;
+    padding:2px 8px; border:1px solid var(--hairline-dark); border-radius:2px; color:var(--text-mid); white-space:nowrap;
+  }
+  .off-tag.review{border-style:dashed;}
+  .off-tag.corruption{color:var(--navy); border-color:var(--navy); font-weight:700;}
+  .off-tag.threat{color:var(--red); border-color:var(--red); font-weight:700;}
+  .off-tag.audit{color:var(--white); background:var(--red-dim); border-color:var(--red-dim); font-weight:700;}
+  .off-tag.auto{color:var(--green); border-color:var(--green); font-weight:700;}
+  .off-right{font-family:var(--mono); font-size:0.74rem; color:var(--text-low); white-space:nowrap; padding-top:3px;}
+  .off-detail{padding:0 16px 18px 46px; border-top:1px solid var(--hairline);}
+  .off-detail-body{font-size:0.88rem; color:var(--text-mid); margin:14px 0; line-height:1.6;}
+  .off-detail-meta{display:flex; flex-wrap:wrap; gap:16px; font-family:var(--mono); font-size:0.76rem; color:var(--text-low); margin-bottom:14px;}
+  .off-detail-actions{display:flex; gap:10px; flex-wrap:wrap;}
+  .off-detail-actions .btn{padding:7px 13px; font-size:0.78rem;}
+  .off-trail{margin-top:14px; font-size:0.8rem; color:var(--text-mid); display:none;}
+  .off-trail.show{display:block;}
+  .off-trail-row{padding:8px 0; border-top:1px dashed var(--hairline);}
+
+  .pagination{display:flex; align-items:center; justify-content:center; gap:14px; margin:10px 0 50px;}
+  .pagination button{padding:7px 14px; font-size:0.82rem;}
+  .pagination span{font-family:var(--mono); font-size:0.8rem; color:var(--text-mid);}
+
+  .empty-queue{text-align:center; padding:40px 20px; color:var(--text-low); font-size:0.9rem; border:1px dashed var(--hairline); border-radius:2px;}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <span>Text size</span>
+      <button type="button" id="fontDec" class="font-ctrl" aria-label="Decrease text size">A−</button>
+      <button type="button" id="fontReset" class="font-ctrl" aria-label="Reset text size">A</button>
+      <button type="button" id="fontInc" class="font-ctrl" aria-label="Increase text size">A+</button>
+      <span class="divider" aria-hidden="true">|</span>
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links" id="navLinksList">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="complaint.html">File complaint</a></li>
+      <li><a href="track.html">Complaints &amp; Policies</a></li>
+      <li class="officer-only" style="display:none;"><a href="officer.html" class="active">Officer dashboard</a></li>
+    </ul>
+    <div class="nav-right">
+      <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
+        <span></span><span></span><span></span>
+      </button>
+      <a href="account.html" class="nav-user">
+        <div class="nav-avatar">A</div>
+        <span>Anon Citizen</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap">
+    <div class="off-head reveal">
+      <div>
+        <p class="eyebrow">Officer dashboard · Api /api/officer/</p>
+        <h1>Today's queue.</h1>
+        <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
+        <p>Sorted for triage, not submission time: audit-tier and safety-flagged cases surface first, then corruption-flagged, then everything else by priority. Auto-resolved cases are hidden by default — they didn't need you today.</p>
+      </div>
+    </div>
+
+    <div class="stat-row reveal">
+      <div class="stat-cell total"><div class="n" id="statTotal">–</div><div class="l">Total filed</div></div>
+      <div class="stat-cell"><div class="n" id="statUnresolved">–</div><div class="l">Unresolved</div></div>
+      <div class="stat-cell review"><div class="n" id="statReview">–</div><div class="l">Needs review</div></div>
+      <div class="stat-cell corruption"><div class="n" id="statCorruption">–</div><div class="l">Vigilance channel</div></div>
+      <div class="stat-cell threat"><div class="n" id="statThreat">–</div><div class="l">Safety escalations</div></div>
+      <div class="stat-cell audit"><div class="n" id="statAudit">–</div><div class="l">Audit tier</div></div>
+    </div>
+
+    <div class="stat-row reveal" style="grid-template-columns:1fr;">
+      <div class="stat-cell auto" style="display:flex; align-items:center; gap:16px;">
+        <div>
+          <div class="n" id="statAutoPct">–</div>
+          <div class="l">Share of handled cases the self-resolution agent closed without a human</div>
+        </div>
+        <div style="font-family:var(--mono); font-size:0.76rem; color:var(--text-low);"><span id="statAutoCount">0</span> auto-resolved so far</div>
+      </div>
+    </div>
+
+    <div class="broad-row reveal" id="broadRow"></div>
+
+    <div class="off-toolbar reveal">
+      <div class="tb-field">
+        <label for="statusSelect">Status</label>
+        <select id="statusSelect">
+          <option value="all">All statuses</option>
+          <option value="received">Received</option>
+          <option value="processing">AI triage</option>
+          <option value="assigned">Assigned</option>
+          <option value="resolved">Resolved</option>
+        </select>
+      </div>
+      <label class="off-check"><input type="checkbox" id="onlyFlagged"> Flagged only (review / corruption / threat / audit)</label>
+      <label class="off-check"><input type="checkbox" id="includeAuto"> Include auto-resolved</label>
+      <span class="off-count" id="queueCount"></span>
+    </div>
+
+    <div class="bulk-bar" id="bulkBar">
+      <span class="bulk-count"><span id="bulkN">0</span> selected</span>
+      <button type="button" class="btn btn-ghost" id="bulkAssign" style="color:var(--white); border-color:var(--white);">Assign to me</button>
+      <button type="button" class="btn btn-ghost" id="bulkEscalate" style="color:var(--white); border-color:var(--white);">Escalate (+15 priority)</button>
+      <button type="button" class="btn btn-ghost" id="bulkResolve" style="color:var(--white); border-color:var(--white);">Mark resolved</button>
+      <button type="button" class="btn btn-ghost" id="bulkClear" style="color:var(--white); border-color:var(--white); margin-left:auto;">Clear selection</button>
+    </div>
+
+    <div class="off-list" id="offList"></div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  const selected = new Set();
+  let currentPage = 1;
+  let activeBroadCategory = 'all';
+  const PAGE_SIZE = 25;
+
+  const stampFor = { received:'stamp-received', processing:'stamp-processing', assigned:'stamp-processing', resolved:'stamp-resolved' };
+  const labelFor = { received:'Received', processing:'AI triage', assigned:'Assigned', resolved:'Resolved' };
+
+  function priorityBand(score){
+    if(score >= 85) return 'urgent';
+    if(score >= 60) return 'high';
+    if(score >= 35) return 'medium';
+    return 'low';
+  }
+
+  function loadSummary(){
+    apiOfficerSummary().then(s=>{
+      document.getElementById('statTotal').textContent = s.total;
+      document.getElementById('statUnresolved').textContent = s.unresolved;
+      document.getElementById('statReview').textContent = s.needsReview;
+      document.getElementById('statCorruption').textContent = s.corruptionFlag;
+      document.getElementById('statThreat').textContent = s.threatFlag;
+      document.getElementById('statAudit').textContent = s.auditTier;
+      document.getElementById('statAutoPct').textContent = Math.round((s.autoResolvedShareOfHandled || 0) * 100) + '%';
+      document.getElementById('statAutoCount').textContent = s.autoResolved;
+
+      const broadRow = document.getElementById('broadRow');
+      const entries = Object.entries(s.byBroadCategory || {});
+      broadRow.innerHTML = `<button type="button" class="broad-chip ${activeBroadCategory==='all'?'active':''}" data-broad="all"><div class="bc-n">${s.total}</div><div class="bc-l">All categories</div></button>` +
+        entries.map(([label, n])=>`
+          <button type="button" class="broad-chip ${activeBroadCategory===label?'active':''}" data-broad="${label}">
+            <div class="bc-n">${n}</div><div class="bc-l">${label}</div>
+          </button>
+        `).join('');
+      broadRow.querySelectorAll('.broad-chip').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          activeBroadCategory = btn.dataset.broad;
+          currentPage = 1;
+          loadSummary(); loadQueue();
+        });
+      });
+    }).catch(err=> showToast(err.message));
+  }
+
+  function buildDetail(d){
+    return `
+      <div class="off-detail-body">${d.body}</div>
+      <div class="off-detail-meta">
+        <span>Filed ${d.filedDisplay}</span>
+        <span>Department: ${d.department}</span>
+        ${d.confidence !== null ? `<span>Model confidence: ${Math.round(d.confidence*100)}%</span>` : '<span>Confidence: rules fallback</span>'}
+        ${d.assignedOfficer ? `<span>Assigned: ${d.assignedOfficer}</span>` : ''}
+      </div>
+      <div class="off-detail-actions">
+        <button type="button" class="btn btn-ghost trail-btn" data-id="${d.id}">View audit trail</button>
+      </div>
+      <div class="off-trail" id="trail-${d.id}"></div>
+    `;
+  }
+
+  function renderQueue(payload){
+    const list = payload.items;
+    const queueCount = document.getElementById('queueCount');
+    queueCount.textContent = `${payload.total} complaint${payload.total===1?'':'s'} in this view`;
+
+    const offList = document.getElementById('offList');
+    if(!list.length){
+      offList.innerHTML = '<div class="empty-queue">Nothing matches these filters — try widening them.</div>';
+      renderPagination(payload);
+      return;
+    }
+
+    offList.innerHTML = list.map(d=>{
+      const band = priorityBand(d.priority);
+      const tags = [
+        d.auditTier ? '<span class="off-tag audit">⛔ Audit tier</span>' : '',
+        d.threatFlag ? '<span class="off-tag threat">🚨 Safety</span>' : '',
+        d.corruptionFlag ? '<span class="off-tag corruption">⚖️ Vigilance</span>' : '',
+        d.needsReview ? '<span class="off-tag review">🕵️ Needs review</span>' : '',
+        d.autoResolved ? '<span class="off-tag auto">🤖 Auto-resolved</span>' : '',
+        `<span class="off-tag">${d.broadCategory}</span>`,
+      ].join('');
+      return `
+        <details class="off-row" data-priority="${band}" data-id="${d.id}">
+          <summary>
+            <input type="checkbox" class="off-check-box" data-id="${d.id}" ${selected.has(d.id)?'checked':''} onclick="event.stopPropagation()">
+            <span class="off-priority" data-priority="${band}">${d.priority}</span>
+            <span class="off-main">
+              <div class="off-brief">${d.aiBrief || d.category}</div>
+              <div class="off-title">${d.title}</div>
+              <div class="off-tags">${tags}</div>
+            </span>
+            <span class="off-right">
+              <span class="stamp ${stampFor[d.stage]}">${labelFor[d.stage]}</span><br>${d.filedDisplay}
+            </span>
+          </summary>
+          <div class="off-detail">${buildDetail(d)}</div>
+        </details>
+      `;
+    }).join('');
+
+    offList.querySelectorAll('.off-check-box').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        if(cb.checked) selected.add(cb.dataset.id); else selected.delete(cb.dataset.id);
+        updateBulkBar();
+      });
+    });
+    offList.querySelectorAll('.trail-btn').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.preventDefault();
+        const id = btn.dataset.id;
+        const trailEl = document.getElementById(`trail-${id}`);
+        if(trailEl.classList.contains('show')){ trailEl.classList.remove('show'); return; }
+        apiOfficerTrail(id).then(t=>{
+          const rows = [
+            ...t.classificationLogs.map(l=>`<div class="off-trail-row">Classified as <b>${l.category}</b> (${l.modelSource}) — confidence ${l.confidence!==null?Math.round(l.confidence*100)+'%':'n/a'}, priority ${l.priority}. ${l.corruptionFlag?'Corruption flag set. ':''}${l.threatFlag?'Threat flag set. ':''}<span style="color:var(--text-low)">${new Date(l.createdAt).toLocaleString()}</span></div>`),
+            ...t.autoResolutionLogs.map(l=>`<div class="off-trail-row">Self-resolution agent: <b>${l.actionTaken?'acted':'declined'}</b> — ${l.reason} <span style="color:var(--text-low)">${new Date(l.createdAt).toLocaleString()}</span></div>`),
+          ];
+          trailEl.innerHTML = rows.length ? rows.join('') : '<div class="off-trail-row">No log entries.</div>';
+          trailEl.classList.add('show');
+        }).catch(err=> showToast(err.message));
+      });
+    });
+
+    renderPagination(payload);
+  }
+
+  function renderPagination(payload){
+    const totalPages = Math.max(1, Math.ceil(payload.total / payload.pageSize));
+    const el = document.getElementById('pagination');
+    el.innerHTML = `
+      <button type="button" class="btn btn-ghost" id="prevPage" ${currentPage<=1?'disabled':''}>← Previous</button>
+      <span>Page ${currentPage} of ${totalPages}</span>
+      <button type="button" class="btn btn-ghost" id="nextPage" ${currentPage>=totalPages?'disabled':''}>Next →</button>
+    `;
+    document.getElementById('prevPage')?.addEventListener('click', ()=>{ currentPage--; loadQueue(); });
+    document.getElementById('nextPage')?.addEventListener('click', ()=>{ currentPage++; loadQueue(); });
+  }
+
+  function updateBulkBar(){
+    const bar = document.getElementById('bulkBar');
+    document.getElementById('bulkN').textContent = selected.size;
+    bar.classList.toggle('show', selected.size > 0);
+  }
+
+  function loadQueue(){
+    const params = {
+      page: currentPage, page_size: PAGE_SIZE,
+      status: document.getElementById('statusSelect').value,
+      only_flagged: document.getElementById('onlyFlagged').checked ? '1' : '0',
+      include_auto_resolved: document.getElementById('includeAuto').checked ? '1' : '0',
+    };
+    if(activeBroadCategory !== 'all') params.broad_category = activeBroadCategory;
+    apiOfficerQueue(params).then(renderQueue).catch(err=>{
+      document.getElementById('offList').innerHTML = `<div class="empty-queue">${err.message}</div>`;
+    });
+  }
+
+  ['statusSelect','onlyFlagged','includeAuto'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', ()=>{ currentPage = 1; loadQueue(); });
+  });
+
+  document.getElementById('bulkClear').addEventListener('click', ()=>{
+    selected.clear(); updateBulkBar(); loadQueue();
+  });
+  document.getElementById('bulkAssign').addEventListener('click', ()=>{
+    apiOfficerBulk([...selected], 'assign').then(()=>{
+      showToast('Assigned.'); selected.clear(); updateBulkBar(); loadSummary(); loadQueue();
+    }).catch(err=> showToast(err.message));
+  });
+  document.getElementById('bulkEscalate').addEventListener('click', ()=>{
+    apiOfficerBulk([...selected], 'escalate').then(()=>{
+      showToast('Escalated.'); selected.clear(); updateBulkBar(); loadSummary(); loadQueue();
+    }).catch(err=> showToast(err.message));
+  });
+  document.getElementById('bulkResolve').addEventListener('click', ()=>{
+    apiOfficerBulk([...selected], 'resolve').then(()=>{
+      showToast('Marked resolved.'); selected.clear(); updateBulkBar(); loadSummary(); loadQueue();
+    }).catch(err=> showToast(err.message));
+  });
+
+  loadSummary();
+  loadQueue();
+</script>
+</body>
+</html>

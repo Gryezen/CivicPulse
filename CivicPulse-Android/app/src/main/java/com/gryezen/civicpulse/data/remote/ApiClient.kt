@@ -2,6 +2,7 @@ package com.gryezen.civicpulse.data.remote
 
 import android.content.Context
 import com.gryezen.civicpulse.BuildConfig
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
@@ -14,10 +15,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Retrofit needs a base URL at construction time, but ours is user-editable
- * (Account > Server settings) because the Render / Supabase backend URL is
- * still being finalized on another branch. Rather than rebuild Retrofit on
- * every change, a single interceptor rewrites the scheme/host/port of every
- * outgoing request to whatever [currentBaseUrl] currently points to.
+ * (Account > Server settings) — the deployed Render/Supabase backend can
+ * move, or a developer may want to point at a local server. Rather than
+ * rebuild Retrofit on every change, a single interceptor rewrites the
+ * scheme/host/port of every outgoing request to whatever [currentBaseUrl]
+ * currently points to.
  */
 class ApiClient(context: Context) {
 
@@ -35,6 +37,10 @@ class ApiClient(context: Context) {
 
     fun clearSession() = cookieJar.clear()
 
+    // explicitNulls = false is still an experimental kotlinx.serialization
+    // API (may change signature in a future release) — opting in here is
+    // just acknowledging that, not disabling anything.
+    @OptIn(ExperimentalSerializationApi::class)
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     private val rewriteHostInterceptor = Interceptor { chain ->

@@ -3,8 +3,13 @@ PolicyGyaan bridge.
 --------------------
 This is the Jinja bridge referenced in main.js: it replaces the hardcoded
 `CP_POLICIES` array that used to live in static/main.js. Policies now live
-server-side (policies_data.json), and app.py renders real, per-user
-recommendations straight into the templates as `{{ policies_json|safe }}`.
+in Postgres (the `policies` table — see models.Policy), seeded once from
+policies_data.json by seed_policies_if_empty() (called from app.py, same
+"seed if empty" pattern as the demo complaints). policies_data.json stays
+in the repo as the editable seed source — add a policy there and restart
+to get it into the DB — rather than requiring a DB console for a 6-row
+table. app.py renders real, per-user recommendations straight into the
+templates as `{{ policies_json|safe }}`.
 
 Two ranking strategies:
   - `PolicyRecommender.recommend()` — calls Gemini (google-genai), the same
@@ -27,11 +32,47 @@ _POLICIES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "polic
 _STOPWORD_MIN_LEN = 3
 
 
-def load_policies():
-    """Load the policy dataset from disk. Mirrors PolicyGyaan's load_default_policy()."""
+def _load_seed_policies():
+    """The raw JSON seed file — used to populate the DB on first boot, and
+    as a last-resort fallback if the DB is unreachable."""
     with open(_POLICIES_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data["policies"]
+
+
+def seed_policies_if_empty():
+    """Called once from app.py's startup block. Mirrors the demo-complaint
+    seeding pattern: only inserts if the table is empty, so it's safe to
+    call on every boot and never overwrites a policy an officer has since
+    edited in the DB directly."""
+    from models import Policy
+    from extensions import db
+
+    if Policy.query.first() is not None:
+        return
+    for p in _load_seed_policies():
+        db.session.add(Policy(
+            slug=p["slug"], title=p["title"], source=p.get("source", ""),
+            category=p["category"], summary=p["summary"],
+            keywords=p.get("keywords", []), eligibility=p.get("eligibility", ""),
+            roadmap=p.get("roadmap", []),
+        ))
+    db.session.commit()
+
+
+def load_policies():
+    """Load the policy dataset from Postgres. Falls back to the JSON seed
+    file if the table is empty or the query fails for any reason (e.g. DB
+    briefly unreachable) — the dashboard/track pages should never end up
+    empty just because Postgres hiccuped."""
+    try:
+        from models import Policy
+        rows = Policy.query.order_by(Policy.title).all()
+        if rows:
+            return [r.to_dict() for r in rows]
+    except Exception:
+        pass
+    return _load_seed_policies()
 
 
 def find_policy(slug, policies=None):

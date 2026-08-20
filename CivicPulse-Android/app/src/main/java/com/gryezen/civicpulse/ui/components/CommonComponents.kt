@@ -162,6 +162,7 @@ fun NavRow(label: String, sublabel: String? = null, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

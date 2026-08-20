@@ -15,8 +15,9 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 
 from extensions import db
-from models import Complaint
+from models import Complaint, ClassificationLog, AutoResolutionLog
 from classify import classify
+from auto_resolve import attempt_auto_resolve
 from search import extract_terms, score_complaint
 
 complaints_bp = Blueprint("complaints", __name__)
@@ -42,20 +43,65 @@ def create_complaint():
 
     result = classify(title, body)
 
+    note = "Filed — queued for AI triage. This usually takes under a minute."
+    if result.get("needs_review"):
+        note = "The classifier wasn't confident enough to auto-route this — a human officer will assign it shortly."
+    elif result.get("corruption_flag"):
+        note = "Flagged for the Vigilance / Anti-Corruption channel. Your identity is not shared with the named office."
+    elif result.get("threat_flag"):
+        note = "Flagged for urgent safety review — routed outside the standard SLA queue."
+
     complaint = Complaint(
         user_id=current_user.id,
         title=title,
         body=body,
         language=language,
         category=result["category"],
+        broad_category=result.get("broad_category", "General Governance"),
         department=result["department"],
         authority=result["authority"],
         priority=result["priority"],
+        confidence=result.get("confidence"),
+        needs_review=bool(result.get("needs_review")),
+        corruption_flag=bool(result.get("corruption_flag")),
+        threat_flag=bool(result.get("threat_flag")),
+        audit_tier=bool(result.get("audit_tier")),
+        ai_brief=result.get("ai_brief"),
         stage="received",
         files_count=files_count,
-        note="Filed — queued for AI triage. This usually takes under a minute.",
+        note=note,
     )
     db.session.add(complaint)
+    db.session.flush()  # get complaint.id before the log row references it
+
+    db.session.add(ClassificationLog(
+        complaint_id=complaint.id,
+        category=result["category"],
+        department=result["department"],
+        priority=result["priority"],
+        confidence=result.get("confidence"),
+        corruption_flag=bool(result.get("corruption_flag")),
+        threat_flag=bool(result.get("threat_flag")),
+        model_source=result.get("source", "rules"),
+    ))
+
+    # Self-resolution agent — see auto_resolve.py. Runs after the complaint
+    # row exists (needs complaint.id for the log FK) but before commit, so
+    # the auto-resolved stage/note land in the same transaction.
+    acted, auto_note, log_fields = attempt_auto_resolve(
+        complaint_id=complaint.id, title=title, body=body,
+        category=result["category"], confidence=result.get("confidence"),
+        corruption_flag=bool(result.get("corruption_flag")),
+        threat_flag=bool(result.get("threat_flag")),
+        audit_tier=bool(result.get("audit_tier")),
+        needs_review=bool(result.get("needs_review")),
+    )
+    if acted:
+        complaint.stage = "resolved"
+        complaint.auto_resolved = True
+        complaint.note = auto_note
+    db.session.add(AutoResolutionLog(complaint_id=complaint.id, **log_fields))
+
     db.session.commit()
 
     return jsonify(complaint.to_dict()), 201

@@ -18,6 +18,7 @@ const CP_DEFAULT_ACCOUNT = {
   employed: true,
   occupation: '',
   language: 'English',
+  role: 'citizen',
 };
 
 function getAccount(){
@@ -55,6 +56,14 @@ function paintNavUser(account){
     const label = el.querySelector('span');
     if(avatar) avatar.textContent = accountInitial(account);
     if(label) label.textContent = accountDisplayName(account);
+  });
+  // "Officer dashboard" nav link only ever shows for role === 'official' —
+  // hidden by default in the HTML (see the .officer-only class), server
+  // still enforces this independently on every /api/officer/* route and
+  // the /officer page route itself (see officer.py, app.py), so hiding
+  // the link is a convenience, not the actual access control.
+  document.querySelectorAll('.officer-only').forEach(el=>{
+    el.style.display = account.role === 'official' ? '' : 'none';
   });
 }
 
@@ -199,6 +208,24 @@ function apiMyComplaints(){
 function apiQueue(params){
   const qs = new URLSearchParams(params || {});
   return apiGet('/api/complaints' + (qs.toString() ? '?' + qs.toString() : ''));
+}
+
+// ---------------------------------------------------------------------
+// OFFICER DASHBOARD — see officer.py. Officials-only (server-enforced);
+// these simply 403 if called by a citizen account.
+// ---------------------------------------------------------------------
+function apiOfficerSummary(){
+  return apiGet('/api/officer/summary');
+}
+function apiOfficerQueue(params){
+  const qs = new URLSearchParams(params || {});
+  return apiGet('/api/officer/queue' + (qs.toString() ? '?' + qs.toString() : ''));
+}
+function apiOfficerBulk(ids, action, extra){
+  return apiPost('/api/officer/bulk', { ids, action, ...(extra || {}) });
+}
+function apiOfficerTrail(complaintId){
+  return apiGet(`/api/officer/complaints/${complaintId}/trail`);
 }
 
 // ---------------------------------------------------------------------
