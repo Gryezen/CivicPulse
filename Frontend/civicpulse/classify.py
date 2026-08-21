@@ -105,6 +105,36 @@ def _priority_from_signals(base_confidence, corruption, threat):
     return max(5, min(99, priority + random.randint(0, 5)))
 
 
+def _score_stated_urgency(title, body):
+    """How urgently THIS complainant wrote it — tone/formatting signals,
+    independent of what the topic is about. Deliberately simple (caps
+    ratio, exclamation marks, a small set of urgency words) rather than a
+    trained model: the point (ideation doc gap #4) is that topic-driven
+    severity and self-reported urgency need to be visibly different
+    numbers on the complaint, not that the urgency signal itself needs to
+    be sophisticated. 0-100.
+    """
+    text = f"{title} {body}"
+    letters = [ch for ch in text if ch.isalpha()]
+    caps_ratio = (sum(1 for ch in letters if ch.isupper()) / len(letters)) if letters else 0
+    exclamations = text.count("!")
+    urgency_words = sum(1 for w in ("urgent", "immediately", "emergency", "asap", "please help", "desperate")
+                         if w in text.lower())
+
+    score = 20 + caps_ratio * 120 + min(exclamations, 5) * 8 + urgency_words * 12
+    return max(0, min(100, int(score)))
+
+
+def _blend_priority(severity, urgency):
+    """Final `priority` (what routing/SLA actually uses) blends the two,
+    weighted toward severity — a calmly-worded genuine emergency should
+    still outrank a melodramatically-worded trivial one. Both raw scores
+    stay on the complaint (see Complaint.modeled_severity/stated_urgency)
+    so an officer can see when tone and topic disagree."""
+    blended = 0.72 * severity + 0.28 * min(urgency, 80)
+    return max(5, min(99, int(round(blended))))
+
+
 def _classify_with_model(title, body, bundle):
     text = f"{title} {body}"
     text_lower = text.lower()
@@ -123,12 +153,19 @@ def _classify_with_model(title, body, bundle):
     needs_review = confidence < CONFIDENCE_THRESHOLD
     display_category = "Uncategorized / Needs Human Review" if needs_review else category
     department = DEPARTMENT_OVERRIDES.get(category, category)
-    priority = _priority_from_signals(confidence, corruption, threat)
+
+    severity = _priority_from_signals(confidence, corruption, threat)
     if audit_tier:
-        priority = max(priority, 95)
+        severity = max(severity, 95)
+    urgency = _score_stated_urgency(title, body)
+    priority = _blend_priority(severity, urgency)
+    if audit_tier:
+        priority = max(priority, 95)  # audit tier still forces the floor on the blended number
 
     return {
         "category": display_category,
+        "modeled_severity": severity,
+        "stated_urgency": urgency,
         "broad_category": broad_category(category, corruption_flag=corruption),
         "department": department if not needs_review else "Unassigned — pending review",
         "authority": department if not needs_review else "Unassigned — pending review",
@@ -211,8 +248,17 @@ def _classify_with_rules(title, body):
     if audit_tier:
         result["priority"] = max(result["priority"], 95)
 
+    severity = result["priority"]  # rules path: severity and the raw pre-blend priority are the same signal
+    urgency = _score_stated_urgency(title, body)
+    blended_priority = _blend_priority(severity, urgency)
+    if audit_tier:
+        blended_priority = max(blended_priority, 95)
+
     result.update({
         "broad_category": broad_category(result["category"], corruption_flag=corruption),
+        "priority": blended_priority,
+        "modeled_severity": severity,
+        "stated_urgency": urgency,
         "confidence": None,
         "needs_review": False,
         "corruption_flag": corruption,

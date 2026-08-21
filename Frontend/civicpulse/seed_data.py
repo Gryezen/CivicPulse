@@ -54,6 +54,9 @@ DEMO_OFFICER_ACCOUNT = {
     "occupation": "Ward Grievance Officer",
     "language": "English",
     "role": "official",
+    "is_verified": True,
+    "employee_id": "DEMO-OFC-001",
+    "department": "Ward Grievance Cell (Demo)",
 }
 
 # (title, body, category, department, authority, language, priority, stage, filed_at, files, note)

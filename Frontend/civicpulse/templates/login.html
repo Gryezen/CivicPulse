@@ -177,6 +177,13 @@
       <!-- REGISTER -->
       <form id="registerForm" novalidate>
         <div class="field">
+          <label>Account type</label>
+          <div class="pill-toggle" id="roleToggle">
+            <button type="button" class="active" data-val="citizen">Citizen</button>
+            <button type="button" data-val="official">Government official</button>
+          </div>
+        </div>
+        <div class="field">
           <label for="re-name">Full name</label>
           <input class="input" type="text" id="re-name" required placeholder="As per your ID">
           <p class="error-msg">Please enter your full name.</p>
@@ -191,12 +198,34 @@
           <input class="input" type="password" id="re-pass" required minlength="6" placeholder="At least 6 characters">
           <p class="error-msg">Password must be at least 6 characters.</p>
         </div>
-        <div class="field">
+        <div class="field" id="regionField">
           <label for="re-region">Region</label>
-          <input class="input" type="text" id="re-region" required placeholder="District / City, State">
+          <input class="input" type="text" id="re-region" placeholder="District / City, State">
           <p class="error-msg">Region is required so we can route your complaints.</p>
         </div>
-        <div class="field">
+
+        <div id="officialFields" style="display:none;">
+          <div class="notice-box" style="margin-bottom:16px; font-size:0.82rem; color:var(--text-mid); border:1px dashed var(--hairline-dark); padding:10px 12px; border-radius:2px;">
+            Official accounts require a verification code issued by your department. This confirms you were given department access — it is not a substitute for your department's own identity checks.
+          </div>
+          <div class="field">
+            <label for="re-empid">Employee ID</label>
+            <input class="input" type="text" id="re-empid" placeholder="Department-issued employee ID">
+            <p class="error-msg">Employee ID is required for an official account.</p>
+          </div>
+          <div class="field">
+            <label for="re-dept">Department</label>
+            <input class="input" type="text" id="re-dept" placeholder="e.g. Ward Grievance Cell, PWD (Roads)">
+            <p class="error-msg">Department is required for an official account.</p>
+          </div>
+          <div class="field">
+            <label for="re-vcode">Officer verification code</label>
+            <input class="input" type="text" id="re-vcode" placeholder="Issued by your department admin">
+            <p class="error-msg">Enter the verification code your department gave you.</p>
+          </div>
+        </div>
+
+        <div class="field" id="eduField">
           <label for="re-edu">Highest education</label>
           <select class="select" id="re-edu" required>
             <option value="" disabled selected>Select one</option>
@@ -208,7 +237,7 @@
             <option>Postgraduate &amp; above</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field" id="employField">
           <label>Currently employed?</label>
           <div class="pill-toggle" id="employToggle">
             <button type="button" class="active" data-val="true">Yes</button>
@@ -277,6 +306,46 @@
   tabRegister.addEventListener('click', showRegister);
   document.getElementById('goRegister').addEventListener('click', (e)=>{ e.preventDefault(); showRegister(); });
 
+  // account-type (citizen / official) toggle
+  const roleToggle = document.getElementById('roleToggle');
+  const officialFields = document.getElementById('officialFields');
+  const regionField = document.getElementById('regionField');
+  const eduField = document.getElementById('eduField');
+  const employField = document.getElementById('employField');
+  const reRegion = document.getElementById('re-region');
+  const reEdu = document.getElementById('re-edu');
+  const reEmpid = document.getElementById('re-empid');
+  const reDept = document.getElementById('re-dept');
+  const reVcode = document.getElementById('re-vcode');
+
+  function currentRole(){
+    return roleToggle.querySelector('button.active').dataset.val;
+  }
+
+  function applyRoleFields(){
+    const isOfficial = currentRole() === 'official';
+    officialFields.style.display = isOfficial ? '' : 'none';
+    // Citizen-only fields aren't meaningful for an official account —
+    // hide them and drop their `required` so validation doesn't block
+    // submission on a field the form no longer shows.
+    regionField.style.display = isOfficial ? 'none' : '';
+    eduField.style.display = isOfficial ? 'none' : '';
+    employField.style.display = isOfficial ? 'none' : '';
+    occupationField.style.display = isOfficial ? 'none' : '';
+    reRegion.required = !isOfficial;
+    reEdu.required = !isOfficial;
+    [reEmpid, reDept, reVcode].forEach(el=> el.required = isOfficial);
+  }
+
+  roleToggle.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      roleToggle.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      applyRoleFields();
+    });
+  });
+  applyRoleFields();
+
   // employment toggle
   const employToggle = document.getElementById('employToggle');
   const occupationField = document.getElementById('occupationField');
@@ -306,11 +375,12 @@
     return valid;
   }
 
-  function nextUrl(){
+  function nextUrl(role){
     const params = new URLSearchParams(window.location.search);
     const next = params.get('next');
     // only ever follow a same-site relative path — never an absolute/external URL
-    return (next && next.startsWith('/')) ? next : 'dashboard.html';
+    if(next && next.startsWith('/')) return next;
+    return role === 'official' ? 'officer.html' : 'dashboard.html';
   }
 
   function setBusy(form, busy){
@@ -328,9 +398,9 @@
     apiLogin(
       document.getElementById('li-email').value.trim(),
       document.getElementById('li-pass').value
-    ).then(()=>{
+    ).then((user)=>{
       showToast('Logged in — redirecting…');
-      setTimeout(()=> window.location.href = nextUrl(), 700);
+      setTimeout(()=> window.location.href = nextUrl(user && user.role), 700);
     }).catch(err=>{
       setBusy(loginForm, false);
       showToast(err.message);
@@ -341,18 +411,27 @@
     e.preventDefault();
     if(!validateForm(registerForm)) return;
     setBusy(registerForm, true);
-    apiRegister({
+    const role = currentRole();
+    const payload = {
       name: document.getElementById('re-name').value.trim(),
       email: document.getElementById('re-email').value.trim(),
       password: document.getElementById('re-pass').value,
-      region: document.getElementById('re-region').value.trim(),
-      education: document.getElementById('re-edu').value,
-      employed: employToggle.querySelector('button.active').dataset.val === 'true',
-      occupation: document.getElementById('re-occ').value.trim(),
       language: document.getElementById('re-lang').value,
-    }).then(()=>{
+      role,
+    };
+    if(role === 'official'){
+      payload.employee_id = reEmpid.value.trim();
+      payload.department = reDept.value.trim();
+      payload.verification_code = reVcode.value.trim();
+    } else {
+      payload.region = document.getElementById('re-region').value.trim();
+      payload.education = document.getElementById('re-edu').value;
+      payload.employed = employToggle.querySelector('button.active').dataset.val === 'true';
+      payload.occupation = document.getElementById('re-occ').value.trim();
+    }
+    apiRegister(payload).then((user)=>{
       showToast('Account created — redirecting…');
-      setTimeout(()=> window.location.href = nextUrl(), 700);
+      setTimeout(()=> window.location.href = nextUrl(user && user.role), 700);
     }).catch(err=>{
       setBusy(registerForm, false);
       showToast(err.message);

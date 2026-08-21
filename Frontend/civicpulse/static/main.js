@@ -202,6 +202,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 function apiCreateComplaint(payload){
   return apiPost('/api/complaints', payload);
 }
+function apiDisputeComplaint(id){
+  return apiPost(`/api/complaints/${id}/dispute`, {});
+}
 function apiMyComplaints(){
   return apiGet('/api/complaints/mine');
 }

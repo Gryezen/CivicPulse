@@ -406,6 +406,8 @@
         const reviewBadge = d.needsReview ? `<span class="qi-tag review">🕵️ Needs human review</span>` : '';
         const corruptionBadge = d.corruptionFlag ? `<span class="qi-tag corruption">⚖️ Vigilance channel</span>` : '';
         const threatBadge = d.threatFlag ? `<span class="qi-tag threat">🚨 Safety escalation</span>` : '';
+        const corroboratedBadge = d.corroborationCount > 1 ? `<span class="qi-tag corroborated">👥 Corroborated ×${d.corroborationCount}</span>` : '';
+        const repeatBadge = d.isRepeatFiling ? `<span class="qi-tag repeat">🔁 Repeat filing</span>` : '';
         const langNative = LANG_NATIVE[d.language] || d.language;
 
         return `

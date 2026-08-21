@@ -118,6 +118,17 @@
   .pagination span{font-family:var(--mono); font-size:0.8rem; color:var(--text-mid);}
 
   .empty-queue{text-align:center; padding:40px 20px; color:var(--text-low); font-size:0.9rem; border:1px dashed var(--hairline); border-radius:2px;}
+
+  .alert-row{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--surface); border:1px solid var(--red); border-left-width:6px; border-radius:2px;
+    padding:10px 14px; font-size:0.84rem;
+  }
+  .alert-row b{color:var(--red);}
+  .alert-row .ar-meta{font-family:var(--mono); font-size:0.72rem; color:var(--text-low); margin-left:auto;}
+
+  .off-tag.corroborated{color:var(--green-dim); border-color:var(--green-dim); font-weight:700;}
+  .off-tag.repeat{color:var(--saffron-dim); border-color:var(--saffron-dim); font-weight:700;}
 </style>
 </head>
 <body>
@@ -189,6 +200,11 @@
     </div>
 
     <div class="broad-row reveal" id="broadRow"></div>
+
+    <div class="reveal" id="systemicAlertsWrap" style="display:none; margin-bottom:28px;">
+      <p class="eyebrow" style="margin-bottom:8px;">⚠ Systemic pattern alerts — departments trending well above their own recent baseline</p>
+      <div id="systemicAlerts" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
 
     <div class="off-toolbar reveal">
       <div class="tb-field">
@@ -270,6 +286,17 @@
           loadSummary(); loadQueue();
         });
       });
+
+      const alertsWrap = document.getElementById('systemicAlertsWrap');
+      const alertsEl = document.getElementById('systemicAlerts');
+      const alerts = s.systemicAlerts || [];
+      alertsWrap.style.display = alerts.length ? '' : 'none';
+      alertsEl.innerHTML = alerts.map(a => `
+        <div class="alert-row">
+          <span><b>${a.department}</b> — ${a.recentCount} complaints in the last 30 days, vs a baseline of ~${a.baselineAverage}/30-day window.</span>
+          <span class="ar-meta">${a.deviationRatio}× baseline</span>
+        </div>
+      `).join('');
     }).catch(err=> showToast(err.message));
   }
 
@@ -280,6 +307,7 @@
         <span>Filed ${d.filedDisplay}</span>
         <span>Department: ${d.department}</span>
         ${d.confidence !== null ? `<span>Model confidence: ${Math.round(d.confidence*100)}%</span>` : '<span>Confidence: rules fallback</span>'}
+        ${d.modeledSeverity !== null ? `<span>Severity: ${d.modeledSeverity} · Stated urgency: ${d.statedUrgency}</span>` : ''}
         ${d.assignedOfficer ? `<span>Assigned: ${d.assignedOfficer}</span>` : ''}
       </div>
       <div class="off-detail-actions">
@@ -309,6 +337,11 @@
         d.corruptionFlag ? '<span class="off-tag corruption">⚖️ Vigilance</span>' : '',
         d.needsReview ? '<span class="off-tag review">🕵️ Needs review</span>' : '',
         d.autoResolved ? '<span class="off-tag auto">🤖 Auto-resolved</span>' : '',
+        d.corroborationCount > 1 ? `<span class="off-tag corroborated">👥 Corroborated ×${d.corroborationCount}</span>` : '',
+        d.isRepeatFiling ? '<span class="off-tag repeat">🔁 Repeat filing</span>' : '',
+        d.suspectedCoordinated ? '<span class="off-tag threat">🤖⚠️ Suspected coordinated</span>' : '',
+        d.unverifiedAllegation ? '<span class="off-tag review">❓ Unverified allegation</span>' : '',
+        d.disputeCount > 0 ? `<span class="off-tag repeat">↩️ Disputed ×${d.disputeCount}</span>` : '',
         `<span class="off-tag">${d.broadCategory}</span>`,
       ].join('');
       return `

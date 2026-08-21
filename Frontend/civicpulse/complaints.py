@@ -1,14 +1,24 @@
 """
 Complaints API.
 
-    POST /api/complaints          file a new complaint (classified server-side)
-    GET  /api/complaints/mine     the logged-in citizen's own complaints
-    GET  /api/complaints          the public/admin queue — ?q=, ?category=, ?status=
+    POST /api/complaints                 file a new complaint (classified server-side;
+                                          may split into multiple sub-issues — see splitting.py)
+    GET  /api/complaints/mine            the logged-in citizen's own complaints
+    GET  /api/complaints                 the public/admin queue — ?q=, ?category=, ?status=
+    POST /api/complaints/<id>/dispute    citizen reopens a "resolved" complaint they say wasn't
+                                          actually fixed — see DISPUTE_ESCALATION_THRESHOLD below
 
 All routes require login (this whole app is behind the account system —
 see app.py's PROTECTED_PAGES). No docket-number lookup: complaints are
 found by NLP-style keyword search on `q`, matching the "Complaints &
 Policies" page's design.
+
+POST /api/complaints always returns the SAME shape citizens' code already
+expects (a single complaint dict — see complaint.html's submit handler),
+plus two additive fields that only matter when a submission got split:
+`splitInto` (the OTHER complaints created alongside the one returned,
+empty list if no split happened) and `wasSplit` (bool). The returned
+complaint is always the first/primary sub-issue.
 """
 
 from flask import Blueprint, request, jsonify
@@ -18,33 +28,36 @@ from extensions import db
 from models import Complaint, ClassificationLog, AutoResolutionLog
 from classify import classify
 from auto_resolve import attempt_auto_resolve
+from clustering import assign_cluster
+from splitting import split_complaint
 from search import extract_terms, score_complaint
 
 complaints_bp = Blueprint("complaints", __name__)
+
+DISPUTE_ESCALATION_THRESHOLD = 2  # reopen a "resolved" complaint this many times -> forced audit-tier escalation
 
 
 def _err(message, status=400):
     return jsonify({"error": message}), status
 
 
-@complaints_bp.post("/api/complaints")
-@login_required
-def create_complaint():
-    data = request.get_json(silent=True) or {}
-    title = (data.get("title") or "").strip()
-    body = (data.get("body") or "").strip()
-    language = data.get("language") or "English"
-    files_count = int(data.get("files_count") or 0)
-
-    if not title:
-        return _err("Title is required.")
-    if not body or len(body) < 10:
-        return _err("Please describe the complaint in a bit more detail.")
-
+def _file_one(title, body, language, files_count, unverified_allegation=False):
+    """Classifies, clusters, self-resolution-checks, and persists ONE
+    complaint row (plus its ClassificationLog/AutoResolutionLog rows).
+    Shared by both the single-issue and the split-into-N-issues paths in
+    create_complaint() below, so a bundled sub-issue gets exactly the same
+    treatment a standalone complaint would."""
     result = classify(title, body)
 
     note = "Filed — queued for AI triage. This usually takes under a minute."
-    if result.get("needs_review"):
+    if unverified_allegation:
+        note = (
+            "This part of your submission reads as an unverified allegation about a named "
+            "individual rather than a directly witnessed/factual complaint. It's held for "
+            "independent review and will NOT be automatically attached to that person's official "
+            "record — a factual, verifiable complaint gets acted on much faster."
+        )
+    elif result.get("needs_review"):
         note = "The classifier wasn't confident enough to auto-route this — a human officer will assign it shortly."
     elif result.get("corruption_flag"):
         note = "Flagged for the Vigilance / Anti-Corruption channel. Your identity is not shared with the named office."
@@ -63,16 +76,73 @@ def create_complaint():
         priority=result["priority"],
         confidence=result.get("confidence"),
         needs_review=bool(result.get("needs_review")),
-        corruption_flag=bool(result.get("corruption_flag")),
+        corruption_flag=bool(result.get("corruption_flag")) and not unverified_allegation,
         threat_flag=bool(result.get("threat_flag")),
         audit_tier=bool(result.get("audit_tier")),
         ai_brief=result.get("ai_brief"),
+        modeled_severity=result.get("modeled_severity"),
+        stated_urgency=result.get("stated_urgency"),
+        unverified_allegation=unverified_allegation,
         stage="received",
         files_count=files_count,
         note=note,
     )
     db.session.add(complaint)
-    db.session.flush()  # get complaint.id before the log row references it
+    db.session.flush()  # get complaint.id before the log row / clustering reference it
+
+    # Corroboration/duplicate/astroturf clustering (see clustering.py) —
+    # skipped for unverified-allegation sub-issues: those are held for
+    # review on their own merits, and "5 other people also made this exact
+    # unverified allegation in the last 90 minutes" is itself closer to
+    # the astroturf case than to genuine corroboration, so it shouldn't
+    # get an automatic priority boost either way without a human looking.
+    cluster_result = {
+        "cluster_id": complaint.id, "corroboration_count": 1,
+        "is_repeat_filing": False, "bump_cluster_ids": [], "suspected_coordinated": False,
+    }
+    if not unverified_allegation:
+        cluster_result = assign_cluster(
+            new_complaint_id=complaint.id, user_id=current_user.id, title=title, body=body,
+            department=complaint.department, filed_at=complaint.filed_at,
+        )
+    complaint.cluster_id = cluster_result["cluster_id"]
+    complaint.corroboration_count = cluster_result["corroboration_count"]
+    complaint.is_repeat_filing = cluster_result["is_repeat_filing"]
+    complaint.suspected_coordinated = cluster_result["suspected_coordinated"]
+
+    if cluster_result["suspected_coordinated"]:
+        # Doc's explicit distinguishing case: near-identical phrasing +
+        # compressed time window + volume. Held for human review instead
+        # of the normal corroboration boost — priority is NOT raised on
+        # this signal alone.
+        complaint.needs_review = True
+        complaint.note = (
+            "This matches a burst of near-identical submissions in a short window — held for "
+            "human review to confirm this is genuine grassroots corroboration rather than "
+            "coordinated/templated submissions, before any priority escalation is applied. " + complaint.note
+        )
+    elif cluster_result["is_repeat_filing"]:
+        complaint.note = (
+            "This looks similar to a complaint you filed recently that's still open — linked as "
+            "a repeat filing rather than a fresh ticket. " + complaint.note
+        )
+    elif cluster_result["corroboration_count"] > 1:
+        complaint.note = (
+            f"Matches {cluster_result['corroboration_count'] - 1} other open complaint(s) about "
+            "the same issue — treated as corroborated and escalated. " + complaint.note
+        )
+
+    if cluster_result["bump_cluster_ids"] and not cluster_result["suspected_coordinated"]:
+        # Keep corroboration_count in sync across every member of the
+        # cluster, and give the whole cluster the same priority bump — a
+        # corroborated issue should outrank an identical uncorroborated
+        # one, on every ticket in the cluster, not just the newest.
+        boost = min(20, (cluster_result["corroboration_count"] - 1) * 6)
+        members = Complaint.query.filter(Complaint.id.in_(cluster_result["bump_cluster_ids"])).all()
+        for m in members:
+            m.corroboration_count = cluster_result["corroboration_count"]
+            m.priority = min(99, m.priority + boost)
+        complaint.priority = min(99, complaint.priority + boost)
 
     db.session.add(ClassificationLog(
         complaint_id=complaint.id,
@@ -80,31 +150,124 @@ def create_complaint():
         department=result["department"],
         priority=result["priority"],
         confidence=result.get("confidence"),
-        corruption_flag=bool(result.get("corruption_flag")),
+        corruption_flag=bool(complaint.corruption_flag),
         threat_flag=bool(result.get("threat_flag")),
         model_source=result.get("source", "rules"),
     ))
 
-    # Self-resolution agent — see auto_resolve.py. Runs after the complaint
-    # row exists (needs complaint.id for the log FK) but before commit, so
-    # the auto-resolved stage/note land in the same transaction.
-    acted, auto_note, log_fields = attempt_auto_resolve(
-        complaint_id=complaint.id, title=title, body=body,
-        category=result["category"], confidence=result.get("confidence"),
-        corruption_flag=bool(result.get("corruption_flag")),
-        threat_flag=bool(result.get("threat_flag")),
-        audit_tier=bool(result.get("audit_tier")),
-        needs_review=bool(result.get("needs_review")),
-    )
-    if acted:
-        complaint.stage = "resolved"
-        complaint.auto_resolved = True
-        complaint.note = auto_note
+    # Self-resolution agent — see auto_resolve.py. Skipped for corroborated/
+    # repeat-filed/suspected-coordinated/unverified-allegation complaints —
+    # all four have already been routed to a human's attention above, and
+    # auto-closing any of them would defeat the point of surfacing them.
+    skip_reasons = []
+    if unverified_allegation:
+        skip_reasons.append("unverified allegation")
+    if complaint.suspected_coordinated:
+        skip_reasons.append("suspected coordinated submission")
+    if complaint.corroboration_count > 1:
+        skip_reasons.append("corroborated by other citizens")
+    if complaint.is_repeat_filing:
+        skip_reasons.append("repeat filing")
+
+    if skip_reasons:
+        acted, log_fields = False, {
+            "action_taken": False,
+            "reason": f"Skipped — {', '.join(skip_reasons)}; routed to a human instead.",
+        }
+    else:
+        acted, auto_note, log_fields = attempt_auto_resolve(
+            complaint_id=complaint.id, title=title, body=body,
+            category=result["category"], confidence=result.get("confidence"),
+            corruption_flag=bool(complaint.corruption_flag),
+            threat_flag=bool(result.get("threat_flag")),
+            audit_tier=bool(result.get("audit_tier")),
+            needs_review=bool(complaint.needs_review),
+        )
+        if acted:
+            complaint.stage = "resolved"
+            complaint.auto_resolved = True
+            complaint.note = auto_note
     db.session.add(AutoResolutionLog(complaint_id=complaint.id, **log_fields))
+
+    return complaint
+
+
+@complaints_bp.post("/api/complaints")
+@login_required
+def create_complaint():
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    body = (data.get("body") or "").strip()
+    language = data.get("language") or "English"
+    files_count = int(data.get("files_count") or 0)
+
+    if not title:
+        return _err("Title is required.")
+    if not body or len(body) < 10:
+        return _err("Please describe the complaint in a bit more detail.")
+
+    # Multi-issue splitting (see splitting.py) — bundled complaints and
+    # factual-vs-unverified-allegation splitting both happen here, before
+    # anything gets classified/persisted.
+    sub_issues = split_complaint(title, body)
+
+    created = []
+    for issue in sub_issues:
+        created.append(_file_one(
+            title=title, body=issue["text"], language=language,
+            files_count=files_count if not created else 0,  # attach file count to the first sub-issue only
+            unverified_allegation=(issue["kind"] == "unverified_allegation"),
+        ))
+
+    if len(created) > 1:
+        bundle_root_id = created[0].id
+        for c in created:
+            c.bundle_id = bundle_root_id
 
     db.session.commit()
 
-    return jsonify(complaint.to_dict()), 201
+    primary = created[0]
+    payload = primary.to_dict()
+    payload["wasSplit"] = len(created) > 1
+    payload["splitInto"] = [c.to_dict() for c in created[1:]]
+    return jsonify(payload), 201
+
+
+@complaints_bp.post("/api/complaints/<string:complaint_id>/dispute")
+@login_required
+def dispute_complaint(complaint_id):
+    """A citizen disputes a "resolved" complaint — 'nothing actually
+    changed'. Ties to ideation doc gap #6 (breaking self-graded closure):
+    rather than looping the same resolve/dispute cycle indefinitely, after
+    DISPUTE_ESCALATION_THRESHOLD disputes the complaint is forced up a
+    tier (audit_tier) so it lands in front of an official through the
+    officer dashboard's highest-priority lane, not just re-queued at the
+    same level that already failed it once.
+    """
+    complaint = Complaint.query.get(complaint_id)
+    if not complaint:
+        return _err("Complaint not found.", 404)
+    if complaint.user_id != current_user.id:
+        return _err("You can only dispute your own complaints.", 403)
+    if complaint.stage != "resolved":
+        return _err("Only a resolved complaint can be disputed.")
+
+    complaint.dispute_count += 1
+    complaint.stage = "processing"
+    complaint.auto_resolved = False
+
+    if complaint.dispute_count >= DISPUTE_ESCALATION_THRESHOLD:
+        complaint.audit_tier = True
+        complaint.priority = max(complaint.priority, 90)
+        complaint.note = (
+            f"Reopened {complaint.dispute_count} time(s) after being marked resolved — "
+            "escalated to priority review instead of being re-queued at the same level."
+        )
+    else:
+        complaint.note = "Reopened by the citizen — marked as not actually resolved. Back in the active queue."
+
+    db.session.commit()
+    return jsonify(complaint.to_dict())
 
 
 @complaints_bp.get("/api/complaints/mine")

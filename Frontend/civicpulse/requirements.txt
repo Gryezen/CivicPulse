@@ -16,3 +16,8 @@ joblib==1.4.2
 # GOOGLE_API_KEY isn't set, PolicyRecommender falls back to keyword scoring
 # and this package is never touched.
 google-genai==1.62.0
+
+# policy_ingest.py's URL adapter (fetch_from_url) — only touched if you
+# actually run a sync against an http(s) source; the file adapter
+# (fetch_from_file) needs nothing extra.
+requests==2.32.3

@@ -69,6 +69,8 @@ def summary():
         for label in BROAD_CATEGORIES
     }
 
+    systemic_alerts = _compute_systemic_alerts()
+
     return jsonify({
         "total": total,
         "byStage": by_stage,
@@ -85,7 +87,61 @@ def summary():
             round(auto_resolved / max(1, total - by_stage["received"]), 3)
         ),
         "byBroadCategory": by_broad,
+        "systemicAlerts": systemic_alerts,
     })
+
+
+def _compute_systemic_alerts(recent_days=30, baseline_days=90, min_recent=5, deviation_ratio=1.5):
+    """Cross-grievance pattern memory (ideation doc gap #7): a department
+    getting a lot MORE complaints in the last `recent_days` than its own
+    recent-history average suggests a systemic problem, not independent
+    unlucky incidents — worth an official's attention even if no single
+    complaint in the spike looks unusual on its own.
+
+    Deliberately simple (a department's own trailing average, not a
+    cross-department statistical model) — same honest-simplification
+    posture as the rest of this codebase. Returns departments whose last
+    `recent_days` count is at least `deviation_ratio`x their per-`recent_days`-
+    window average over the preceding `baseline_days`, with at least
+    `min_recent` complaints so a department going from 1 to 2 doesn't
+    trigger a false alarm.
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import func
+
+    now = datetime.now(timezone.utc)
+    recent_start = now - timedelta(days=recent_days)
+    baseline_start = now - timedelta(days=baseline_days)
+
+    recent_counts = dict(
+        db.session.query(Complaint.department, func.count(Complaint.id))
+        .filter(Complaint.filed_at >= recent_start)
+        .group_by(Complaint.department).all()
+    )
+    baseline_counts = dict(
+        db.session.query(Complaint.department, func.count(Complaint.id))
+        .filter(Complaint.filed_at >= baseline_start, Complaint.filed_at < recent_start)
+        .group_by(Complaint.department).all()
+    )
+
+    baseline_windows = max(1, (baseline_days - recent_days) / recent_days)
+
+    alerts = []
+    for dept, recent_n in recent_counts.items():
+        if recent_n < min_recent:
+            continue
+        baseline_avg = (baseline_counts.get(dept, 0) / baseline_windows) or 0.5  # avoid div-by-zero, treat "no history" as a low baseline
+        ratio = recent_n / baseline_avg
+        if ratio >= deviation_ratio:
+            alerts.append({
+                "department": dept,
+                "recentCount": recent_n,
+                "baselineAverage": round(baseline_avg, 1),
+                "deviationRatio": round(ratio, 2),
+            })
+
+    alerts.sort(key=lambda a: a["deviationRatio"], reverse=True)
+    return alerts[:10]
 
 
 @officer_bp.get("/api/officer/queue")
@@ -176,7 +232,29 @@ def bulk_action():
     return jsonify({"updated": len(complaints)})
 
 
-@officer_bp.get("/api/officer/complaints/<string:complaint_id>/trail")
+@officer_bp.post("/api/officer/policies/sync")
+@_official_required
+def sync_policies():
+    """Manually trigger a policy-table refresh (see policy_ingest.py).
+    Body: {"source": "https://... or a server-local file path"} — if
+    omitted, falls back to the POLICY_SOURCE_URL env var, and if that's
+    also unset, fails with a clear 400 rather than silently no-op'ing.
+    Untested against a live URL source in this sandbox — see
+    policy_ingest.py's module docstring."""
+    import os
+    from policy_ingest import run_sync
+
+    data = request.get_json(silent=True) or {}
+    source = data.get("source") or os.environ.get("POLICY_SOURCE_URL")
+    if not source:
+        return _err("No source provided and POLICY_SOURCE_URL is not set.")
+
+    try:
+        result = run_sync(source)
+    except Exception as e:
+        return _err(f"Sync failed: {e}", 502)
+
+    return jsonify(result)
 @_official_required
 def audit_trail(complaint_id):
     """Full explainability trail for one complaint — every classification

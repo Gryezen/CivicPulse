@@ -98,7 +98,22 @@ def _ensure_new_columns():
         "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS auto_resolved BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS ai_brief VARCHAR(240)",
         "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS assigned_officer VARCHAR(160)",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS cluster_id VARCHAR(36)",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS corroboration_count INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS is_repeat_filing BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS modeled_severity INTEGER",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS stated_urgency INTEGER",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS bundle_id VARCHAR(36)",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS unverified_allegation BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS dispute_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS suspected_coordinated BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE policies ADD COLUMN IF NOT EXISTS external_id VARCHAR(160)",
+        "ALTER TABLE policies ADD COLUMN IF NOT EXISTS source_url VARCHAR(500)",
+        "ALTER TABLE policies ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'citizen'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id VARCHAR(80)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(160)",
     ]
     for stmt in statements:
         try:

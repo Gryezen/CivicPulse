@@ -185,6 +185,9 @@
     }
     el.innerHTML = list.map(c=>{
       const s = statusMeta[c.stage] || statusMeta.received;
+      const disputeBtn = c.stage === 'resolved'
+        ? `<button type="button" class="btn btn-ghost dispute-btn" data-id="${c.id}" style="padding:4px 10px; font-size:0.74rem;" onclick="event.preventDefault(); event.stopPropagation();">Not actually fixed?</button>`
+        : '';
       return `
         <a href="track.html?q=${encodeURIComponent(c.title)}" class="complaint-card" style="display:block; text-decoration:none; color:inherit;">
           <div class="cc-top">
@@ -194,9 +197,19 @@
           <div class="cc-meta">
             <span>${c.authority}</span>
             <span>Filed ${c.filedDisplay}</span>
+            ${disputeBtn}
           </div>
         </a>`;
     }).join('');
+
+    el.querySelectorAll('.dispute-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        apiDisputeComplaint(btn.dataset.id).then(()=>{
+          showToast('Reopened — sent back to the active queue.');
+          apiMyComplaints().then(list=>{ renderComplaints(list); renderStats(list); });
+        }).catch(err=> showToast(err.message));
+      });
+    });
   }
 
   // "Recommended for you" — PolicyGyaan. CP_POLICIES above is already a

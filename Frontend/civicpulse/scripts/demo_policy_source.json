@@ -1,0 +1,22 @@
+[
+  {
+    "id": "AB-PMJAY",
+    "title": "Ayushman Bharat - PM Jan Arogya Yojana",
+    "category": "Healthcare",
+    "summary": "Health insurance cover of up to Rs 5 lakh per family per year for secondary and tertiary care hospitalisation.",
+    "keywords": ["health", "hospital", "insurance", "medical", "treatment"],
+    "eligibility": "Families identified per the SECC 2011 database; state-specific extensions may apply.",
+    "source": "Demo policy feed",
+    "source_url": "https://pmjay.gov.in/"
+  },
+  {
+    "id": "PM-SVANIDHI",
+    "title": "PM Street Vendor's AtmaNirbhar Nidhi",
+    "category": "Livelihood",
+    "summary": "Working-capital loans for street vendors to resume livelihoods affected by disruptions, with incentives for timely repayment.",
+    "keywords": ["street vendor", "loan", "livelihood", "self-employed"],
+    "eligibility": "Street vendors in possession of a Certificate of Vending / Identity Card issued by urban local bodies.",
+    "source": "Demo policy feed",
+    "source_url": "https://pmsvanidhi.mohua.gov.in/"
+  }
+]

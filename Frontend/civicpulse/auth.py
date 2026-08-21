@@ -6,19 +6,31 @@ manage on the frontend, `fetch(..., {credentials: 'same-origin'})` (the
 default) just works. Endpoints:
 
     POST  /api/auth/register    { name, email, password, region, education,
-                                   employed, occupation, language }
+                                   employed, occupation, language, role,
+                                   employee_id, department, verification_code }
     POST  /api/auth/login       { email, password }
     POST  /api/auth/logout
     GET   /api/user/me
     PATCH /api/user/me          { any subset of the profile fields above,
-                                   except password }
+                                   except password, role, employee_id, department }
     POST  /api/user/me/password { current_password, new_password }
 
 All responses are JSON. Errors are `{"error": "message"}` with a 4xx/5xx
 status — the frontend's fetch wrappers (see main.js) surface `error` in a
 toast.
+
+Officer self-registration: role="official" additionally requires
+employee_id, department, and a verification_code matching
+OFFICIAL_VERIFICATION_CODE (see app.py) — a shared code meant to be
+distributed to real officials out-of-band (department circular, onboarding
+email), not real identity verification. This is a prototype-appropriate
+gate against a random citizen ticking "I'm an official", not a KYC/
+biometric check — say so if asked. role/employee_id/department are
+deliberately NOT patchable via PATCH /api/user/me — no upgrading a citizen
+account to official after the fact through the account-settings form.
 """
 
+import os
 import re
 
 from flask import Blueprint, request, jsonify
@@ -56,6 +68,7 @@ def register():
     employed = bool(data.get("employed", True))
     occupation = (data.get("occupation") or "").strip()
     language = data.get("language") or "English"
+    role = (data.get("role") or "citizen").strip().lower()
 
     if not name:
         return _err("Full name is required.")
@@ -65,12 +78,40 @@ def register():
         return _err("Password must be at least 6 characters.")
     if language not in VALID_LANGUAGES:
         return _err("Unsupported language.")
+    if role not in ("citizen", "official"):
+        return _err("Invalid account type.")
     if User.query.filter_by(email=email).first():
         return _err("An account with this email already exists.", 409)
+
+    employee_id = ""
+    department = ""
+    is_verified = False
+
+    if role == "official":
+        employee_id = (data.get("employee_id") or "").strip()
+        department = (data.get("department") or "").strip()
+        verification_code = (data.get("verification_code") or "").strip()
+        expected_code = os.environ.get("OFFICIAL_VERIFICATION_CODE", "")
+
+        if not employee_id:
+            return _err("Employee ID is required for an official account.")
+        if not department:
+            return _err("Department is required for an official account.")
+        if not expected_code:
+            # Fail closed: if the deployment never set a code, official
+            # self-registration is disabled outright rather than silently
+            # accepting anything.
+            return _err("Official registration is not open on this deployment. Contact your department admin.", 403)
+        if verification_code.strip().upper() != expected_code.strip().upper():
+            return _err("Invalid officer verification code. Check the code your department issued you.", 403)
+
+        is_verified = True
 
     user = User(
         name=name, email=email, region=region, education=education,
         employed=employed, occupation=occupation, language=language,
+        role=role, is_verified=is_verified,
+        employee_id=employee_id or None, department=department or None,
     )
     user.set_password(password)
     db.session.add(user)

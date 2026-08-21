@@ -254,6 +254,8 @@
         </div>
       </div>
 
+      <div id="splitNote" style="display:none; margin-top:18px; padding:12px 14px; border:1px dashed var(--hairline-dark); border-radius:2px; font-size:0.86rem; color:var(--text-mid);"></div>
+
       <div class="success-actions">
         <a href="track.html" class="btn btn-primary" id="successTrackLink">Go to Complaints &amp; Policies</a>
         <button class="btn btn-ghost" id="fileAnother">File another complaint</button>
@@ -347,6 +349,21 @@
       prioEl.textContent = `${band.label} · ${result.priority}/100`;
       prioEl.style.color = band.color;
       document.getElementById('successTrackLink').href = 'track.html?q=' + encodeURIComponent(result.title);
+
+      // Bundled/multi-issue submission (see splitting.py) — the backend
+      // still returns one primary complaint (rendered above) plus the
+      // other sub-issues it split out, each independently classified and
+      // routed to its own department.
+      const splitNote = document.getElementById('splitNote');
+      if(splitNote){
+        if(result.wasSplit && result.splitInto && result.splitInto.length){
+          const list = result.splitInto.map(c => `<li>${c.category} — ${c.department}${c.unverifiedAllegation ? ' (held for review — unverified allegation)' : ''}</li>`).join('');
+          splitNote.innerHTML = `This read as more than one issue, so it was filed as ${result.splitInto.length + 1} separate complaints, each routed on its own:<ul>${list}</ul>`;
+          splitNote.style.display = '';
+        } else {
+          splitNote.style.display = 'none';
+        }
+      }
 
       document.querySelectorAll('.complaint-layout').forEach(el=> el.style.display = 'none');
       successCard.classList.add('show');

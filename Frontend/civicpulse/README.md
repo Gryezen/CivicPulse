@@ -57,29 +57,61 @@ flagged in the original codebase audit. Be upfront about these if asked:
   seeded demo/dataset rows, not a large corpus of real outcomes. It only
   acts on a conservative allowlist of low-stakes categories (street
   lighting, sanitation, roads, water) and never on anything corruption/
-  threat/audit-tier/low-confidence flagged.
-- **Duplicate/corroboration clustering** (ideation doc gap #3 — the
-  "40 residents, one signal" case) is **not built**. `broad_category` and
-  `audit_tier` exist; cross-complaint clustering by geolocation/time
-  window doesn't yet. Complaints don't currently store geolocation at all.
-- **Two-party closure / CV-verified resolution** (gap #6) is not built —
-  `stage` still moves to `resolved` on either an officer action or the
-  self-resolution agent, not on citizen confirmation.
-- **Severity vs. stated-urgency split** (gap #4) is not built — `priority`
-  is still one blended number, not two separate scores.
+  threat/audit-tier/low-confidence/corroborated/repeat/coordinated-flagged.
+- **Duplicate/corroboration/astroturf clustering** (`clustering.py`, gap
+  #3 + the astroturfing edge case) matches by TEXT SIMILARITY + DEPARTMENT
+  + TIME WINDOW only — there is no geolocation field on `Complaint` at
+  all, so "same issue" is inferred from wording, not physical proximity. A
+  real deployment capturing lat/lng would tighten this considerably.
+  Astroturf detection specifically requires all three of near-identical
+  phrasing + a compressed (90-min) window + volume (8+) — it's a coarse
+  heuristic, not a trained detector, and is designed to hold-for-review
+  rather than auto-dismiss, so a false positive costs a human glance, not
+  a suppressed real signal.
+- **Bundled-issue / unverified-allegation splitting** (`splitting.py`,
+  gap #5 + the "structurally tricky" bundling case) is a clause-split +
+  per-clause reclassification + a hearsay-keyword regex — not an NLP
+  model. It will miss phrasings that don't use "also"/";"-style
+  separators or the specific hearsay markers it checks for; missing a
+  split just means the complaint stays as one blob (the safe failure
+  mode), not a wrong split.
+- **Severity vs. stated-urgency split** (`classify.py`'s
+  `modeled_severity`/`stated_urgency`, gap #4) — urgency is scored from
+  caps-ratio/exclamation-marks/a small urgency-word list, not sentiment
+  analysis. It correctly ranks the doc's own two contrast cases (a
+  dramatic EPF delay vs. a calm "no food for three days" ration
+  complaint) lower/higher respectively — verified in this repo's own
+  ad-hoc testing, not against a labelled urgency dataset.
+- **Repeated-closure-dispute escalation** (`complaints.py`'s
+  `/dispute` endpoint, gap #6) exists — reopening a resolved complaint
+  twice forces `audit_tier`. What's still missing from full gap #6 is
+  **two-party closure with CV-verified before/after photos** — closure
+  today is still officer/agent-asserted, not photo-confirmed.
+- **Policy auto-refresh** (`policy_ingest.py`) is a pluggable ingestion
+  adapter (JSON file or URL), NOT a live web scraper — see that file's
+  own docstring for why (the ideation doc argues against building a live
+  scraper for officials' contact directories for the same reasons; the
+  same logic applies to scheme data). The file-based adapter is tested
+  end-to-end in this repo (`scripts/demo_policy_source.json`); the URL
+  adapter is written but **has not been run against a real HTTP endpoint**
+  in this sandbox (no network access) — verify it against your actual
+  source before relying on it.
 
 ## Architecture
 
 | Layer | What it does |
 |---|---|
 | `models.py` | SQLAlchemy models: `User`, `Complaint`, `ClassificationLog`, `AutoResolutionLog`, `Policy` |
-| `classify.py` | Classifies a complaint: TF-IDF + Logistic Regression (`classifier_model.joblib`, trained by `train_classifier.py`), with a keyword-rule fallback if the model file is missing. Also detects corruption/threat/audit-tier signals and builds the one-line officer brief. |
+| `classify.py` | Classifies a complaint: TF-IDF + Logistic Regression (`classifier_model.joblib`, trained by `train_classifier.py`), with a keyword-rule fallback if the model file is missing. Detects corruption/threat/audit-tier signals, scores `modeled_severity`/`stated_urgency` separately, and builds the one-line officer brief. |
 | `taxonomy.py` | Maps the classifier's ~20 fine categories to 5 broad top-level labels (Crime & Public Safety, Healthcare & Welfare, Infrastructure & Utilities, Corruption & Vigilance, General Governance) — adding a 6th broad label or remapping a fine category is a config change here, not a retrain. |
+| `splitting.py` | Splits a bundled multi-issue submission into separate routable issues, and separates an unverified allegation about a named individual from the factual/service part of the same complaint. |
+| `clustering.py` | Duplicate/corroboration/astroturf detection — repeat filings, multi-citizen corroboration with a shared priority boost, and coordinated/templated-submission detection that withholds the boost pending human review. |
 | `auto_resolve.py` | Confidence-gated self-resolution agent — see limitations above. |
-| `complaints.py` | Citizen-facing complaint API: file, list mine, browse/search the public queue. |
-| `officer.py` | Official-facing API: summary stats, triage-ordered queue, bulk assign/escalate/resolve, per-complaint audit trail. Gated by `User.role == "official"`, enforced server-side. |
-| `policy_engine.py` | Loads/recommends civic schemes — now backed by the `policies` Postgres table (seeded once from `policies_data.json`), not read fresh off disk. |
-| `seed_data.py` | First-boot seeding: demo accounts, hand-written demo complaints, plus a sample of real dataset rows run through the actual classifier so the demo queue isn't just 9 hand-written examples. |
+| `complaints.py` | Citizen-facing complaint API: file (splits + clusters + auto-resolves as needed), dispute a resolved complaint, list mine, browse/search the public queue. |
+| `officer.py` | Official-facing API: summary stats + systemic-pattern alerts, triage-ordered queue, bulk assign/escalate/resolve, per-complaint audit trail, policy-sync trigger. Gated by `User.is_official` (role AND verified), enforced server-side. |
+| `policy_engine.py` | Loads/recommends civic schemes — backed by the `policies` Postgres table (seeded once from `policies_data.json`), not read fresh off disk. |
+| `policy_ingest.py` | Keeps the `policies` table current from an external JSON feed — see limitations above. |
+| `seed_data.py` | First-boot seeding: demo accounts (citizen + verified official), hand-written demo complaints, plus a sample of real dataset rows run through the actual classifier so the demo queue isn't just 9 hand-written examples. |
 | `train_classifier.py` | Offline script — run manually, not on every server boot — to (re)build `classifier_model.joblib`. |
 
 ## Pages
@@ -87,13 +119,32 @@ flagged in the original codebase audit. Be upfront about these if asked:
 | Route | Purpose |
 |---|---|
 | `/` | Landing / pitch page |
-| `/login` | Citizen login + register |
+| `/login` | Citizen/official login + register (role picked at registration — see below) |
 | `/complaint` | File a new complaint |
-| `/dashboard` | Citizen dashboard — status, own complaints, recommended policies |
+| `/dashboard` | Citizen dashboard — status, own complaints (with a "not actually fixed?" dispute action on resolved ones), recommended policies |
 | `/track` | Public complaint queue + policy search, no admin required |
 | `/officer` | Official triage dashboard — role-gated, see below |
 
-## The officer dashboard (`/officer`)
+## Officer accounts & verification
+
+Officials can self-register on `/login` (Register tab → "Government
+official"). This requires:
+- Employee ID and department (free text, stored but not checked against
+  any real HR system)
+- A verification code matching the `OFFICIAL_VERIFICATION_CODE` env var
+
+**What this honestly is:** a shared-secret gate against a random citizen
+ticking "I'm an official" on the signup form — the code is meant to be
+distributed to a department out-of-band (a circular, an onboarding
+email). **What this is not:** real identity verification/KYC. A
+production deployment should replace this with department SSO or a
+manual-approval workflow — `User.is_verified` is kept as its own column
+specifically so that swap doesn't require touching `role` or any of the
+`is_official` call sites (see `models.py`'s comment on `is_official`).
+If `OFFICIAL_VERIFICATION_CODE` is unset, official self-registration
+fails closed rather than silently accepting any code.
+
+## Officer dashboard (`/officer`)
 
 Built for the "10,000+ tickets, 8-hour shift" problem the ideation doc
 raises directly: the default view is **triage order, not submission
@@ -108,10 +159,25 @@ trail" panel showing every classification and auto-resolution decision
 with its reasoning and confidence — the explainability feature from gap
 #10.
 
-Access is gated by `User.role == "official"` — set directly in the DB (or
-via the seeded `officer@civicpulse.local` demo account); there's no
-self-service upgrade path, deliberately, since a real deployment would use
-department SSO/directory membership instead of a signup checkbox.
+Access is gated by `User.is_official` (role == "official" AND
+`is_verified` — see "Officer accounts & verification" above); there's no
+self-service upgrade path from citizen to official after registration,
+deliberately, since a real deployment would use department SSO/directory
+membership rather than an account-settings toggle.
+
+## Policy auto-refresh
+
+`POST /api/officer/policies/sync` (officer-only) triggers
+`policy_ingest.py` against either a `"source"` in the request body or the
+`POLICY_SOURCE_URL` env var. See that file's docstring for the expected
+JSON shape and — importantly — the honest caveat that the URL adapter
+hasn't been run against a live source in this environment. Try it first
+with the bundled demo file:
+
+```bash
+python policy_ingest.py --source scripts/demo_policy_source.json
+```
+
 
 ## Design system — Government Grievance Portal
 
@@ -138,11 +204,23 @@ department SSO/directory membership instead of a signup checkbox.
 Straight from the ideation doc's own prioritised gap list — see that
 document for the full reasoning behind each:
 
-- Duplicate/corroboration clustering by geolocation + time window (gap #3)
-- Two-party closure with CV-verified before/after photos (gap #6)
-- Cross-grievance pattern memory / systemic-negligence alerts (gap #7)
-- Severity vs. stated-urgency as two separate scores (gap #4)
-- Service-failure vs. unverified-named-individual-allegation splitting (gap #5)
+- **CV-verified two-party closure** (gap #6) — the reopen/dispute
+  escalation half of this gap is built (see `complaints.py`'s
+  `/dispute` endpoint); photo-verified before/after closure is not.
 - SMS/IVR status-check for non-smartphone citizens
 - Multilingual UI (complaints already carry a `language` field; the UI
   chrome itself is English-only)
+- Real identity/KYC verification for officials — see "Officer accounts &
+  verification" above for what's actually implemented instead
+- Coordination-pattern detection beyond the phrasing+timing+volume
+  heuristic in `clustering.py` — no network-graph/account-level analysis
+  (shared IPs, account creation bursts, etc.), text-only
+
+Everything else the ideation doc calls out by number is built — see the
+"What's real vs. simplified" section above for the honest caveats on each:
+gap #3 (corroboration + astroturf clustering), #4 (severity/urgency
+split), #5 (bundled-issue + unverified-allegation splitting), #7
+(systemic pattern alerts), plus the 5-broad-category taxonomy, the
+officer dashboard, and the self-resolution agent from the doc's own
+action-plan paragraph.
+
