@@ -321,6 +321,8 @@
   const reEmpid = document.getElementById('re-empid');
   const reDept = document.getElementById('re-dept');
   const reVcode = document.getElementById('re-vcode');
+  const employToggle = document.getElementById('employToggle');
+  const occupationField = document.getElementById('occupationField');
 
   function currentRole(){
     return roleToggle.querySelector('button.active').dataset.val;
@@ -354,8 +356,6 @@
   applyRoleFields();
 
   // employment toggle
-  const employToggle = document.getElementById('employToggle');
-  const occupationField = document.getElementById('occupationField');
   employToggle.querySelectorAll('button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       employToggle.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
