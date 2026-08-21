@@ -90,6 +90,7 @@
       <li><a href="complaint.html">File complaint</a></li>
       <li><a href="track.html">Complaints &amp; Policies</a></li>
       <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
@@ -174,6 +175,7 @@
     received:{label:'Received', cls:'stamp-received'},
     processing:{label:'In review', cls:'stamp-processing'},
     assigned:{label:'In review', cls:'stamp-processing'},
+    pending_confirmation:{label:'Awaiting your confirmation', cls:'stamp-processing'},
     resolved:{label:'Resolved', cls:'stamp-resolved'},
   };
 
@@ -185,8 +187,17 @@
     }
     el.innerHTML = list.map(c=>{
       const s = statusMeta[c.stage] || statusMeta.received;
-      const disputeBtn = c.stage === 'resolved'
-        ? `<button type="button" class="btn btn-ghost dispute-btn" data-id="${c.id}" style="padding:4px 10px; font-size:0.74rem;" onclick="event.preventDefault(); event.stopPropagation();">Not actually fixed?</button>`
+      let actionBtns = '';
+      if(c.stage === 'resolved'){
+        actionBtns = `<button type="button" class="btn btn-ghost dispute-btn" data-id="${c.id}" style="padding:4px 10px; font-size:0.74rem;" onclick="event.preventDefault(); event.stopPropagation();">Not actually fixed?</button>`;
+      } else if(c.pendingConfirmation){
+        actionBtns = `
+          <button type="button" class="btn btn-primary confirm-btn" data-id="${c.id}" style="padding:4px 10px; font-size:0.74rem;" onclick="event.preventDefault(); event.stopPropagation();">Confirm fixed</button>
+          <button type="button" class="btn btn-ghost dispute-btn" data-id="${c.id}" style="padding:4px 10px; font-size:0.74rem;" onclick="event.preventDefault(); event.stopPropagation();">Not actually fixed</button>
+        `;
+      }
+      const photoNote = c.pendingConfirmation && c.afterPhotoUrl
+        ? `<div style="margin-top:6px;"><a href="${c.afterPhotoUrl}" target="_blank" rel="noopener" style="font-size:0.76rem; color:var(--navy);">View after-photo the officer attached →</a></div>`
         : '';
       return `
         <a href="track.html?q=${encodeURIComponent(c.title)}" class="complaint-card" style="display:block; text-decoration:none; color:inherit;">
@@ -197,8 +208,9 @@
           <div class="cc-meta">
             <span>${c.authority}</span>
             <span>Filed ${c.filedDisplay}</span>
-            ${disputeBtn}
+            ${actionBtns}
           </div>
+          ${photoNote}
         </a>`;
     }).join('');
 
@@ -206,6 +218,14 @@
       btn.addEventListener('click', ()=>{
         apiDisputeComplaint(btn.dataset.id).then(()=>{
           showToast('Reopened — sent back to the active queue.');
+          apiMyComplaints().then(list=>{ renderComplaints(list); renderStats(list); });
+        }).catch(err=> showToast(err.message));
+      });
+    });
+    el.querySelectorAll('.confirm-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        apiConfirmComplaint(btn.dataset.id).then(()=>{
+          showToast('Confirmed — closed.');
           apiMyComplaints().then(list=>{ renderComplaints(list); renderStats(list); });
         }).catch(err=> showToast(err.message));
       });
@@ -241,7 +261,7 @@
   function renderStats(list){
     document.getElementById('statTotal').textContent = list.length;
     document.getElementById('statReceived').textContent = list.filter(c=>c.stage==='received').length;
-    document.getElementById('statProcessing').textContent = list.filter(c=>c.stage==='processing' || c.stage==='assigned').length;
+    document.getElementById('statProcessing').textContent = list.filter(c=>c.stage==='processing' || c.stage==='assigned' || c.stage==='pending_confirmation').length;
     document.getElementById('statResolved').textContent = list.filter(c=>c.stage==='resolved').length;
   }
 

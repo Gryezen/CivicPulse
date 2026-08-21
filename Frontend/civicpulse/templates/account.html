@@ -46,6 +46,7 @@
       <li><a href="complaint.html">File complaint</a></li>
       <li><a href="track.html">Complaints &amp; Policies</a></li>
       <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
@@ -159,6 +160,23 @@
       </div>
     </form>
 
+    <!-- SMS/IVR STATUS-CHECK -->
+    <form class="settings-section reveal" id="phoneForm" novalidate>
+      <h3>SMS status-check</h3>
+      <p class="section-sub">Link a phone number to check your complaint status by SMS, without needing the app or a data connection. <a href="sms-demo.html" style="color:var(--navy);">Try the SMS demo →</a></p>
+
+      <div class="field" style="max-width:360px;">
+        <label for="ac-phone">Phone number</label>
+        <input class="input" type="tel" id="ac-phone" placeholder="+91XXXXXXXXXX">
+        <p class="hint">Once linked, text STATUS to the CivicPulse number for your latest complaints (see the demo for how this works — this prototype doesn't send real SMS yet).</p>
+      </div>
+
+      <div class="settings-actions">
+        <button type="submit" class="btn btn-primary">Save phone number</button>
+        <span class="save-note" id="phoneSaveNote">Saved ✓</span>
+      </div>
+    </form>
+
     <!-- ACCOUNT & SECURITY -->
     <form class="settings-section reveal" id="securityForm" novalidate>
       <h3>Account &amp; security</h3>
@@ -224,6 +242,7 @@
     document.getElementById('ac-edu').value = account.education || '';
     document.getElementById('ac-occ').value = account.occupation || '';
     document.getElementById('ac-lang').value = account.language || 'English';
+    document.getElementById('ac-phone').value = account.phone || '';
     document.getElementById('ac-email').value = account.email || '';
     setEmployToggle(account.employed !== false);
   }
@@ -293,6 +312,16 @@
       .then(()=>{
         showToast('Language preference saved');
         flashSaveNote('langSaveNote');
+      }).catch(err=> showToast(err.message));
+  });
+
+  document.getElementById('phoneForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    apiUpdateAccount({ phone: document.getElementById('ac-phone').value.trim() })
+      .then(updated=>{
+        document.getElementById('ac-phone').value = updated.phone || '';
+        showToast('Phone number saved');
+        flashSaveNote('phoneSaveNote');
       }).catch(err=> showToast(err.message));
   });
 

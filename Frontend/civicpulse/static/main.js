@@ -57,13 +57,19 @@ function paintNavUser(account){
     if(avatar) avatar.textContent = accountInitial(account);
     if(label) label.textContent = accountDisplayName(account);
   });
-  // "Officer dashboard" nav link only ever shows for role === 'official' —
+  // "Officer dashboard" nav link only ever shows for a FULLY verified
+  // official (isOfficial — role AND is_verified, not just role, so an
+  // account still in pending_review doesn't see a link that would 403) —
   // hidden by default in the HTML (see the .officer-only class), server
   // still enforces this independently on every /api/officer/* route and
   // the /officer page route itself (see officer.py, app.py), so hiding
-  // the link is a convenience, not the actual access control.
+  // the link is a convenience, not the actual access control. Same
+  // pattern for .admin-only / isAdmin.
   document.querySelectorAll('.officer-only').forEach(el=>{
-    el.style.display = account.role === 'official' ? '' : 'none';
+    el.style.display = account.isOfficial ? '' : 'none';
+  });
+  document.querySelectorAll('.admin-only').forEach(el=>{
+    el.style.display = account.isAdmin ? '' : 'none';
   });
 }
 
@@ -205,6 +211,20 @@ function apiCreateComplaint(payload){
 function apiDisputeComplaint(id){
   return apiPost(`/api/complaints/${id}/dispute`, {});
 }
+function apiConfirmComplaint(id){
+  return apiPost(`/api/complaints/${id}/confirm`, {});
+}
+// Reads a File (from an <input type="file">) into a base64 data URL, for
+// endpoints that accept images as JSON (before_photo / after_photo) —
+// see uploads.py.
+function fileToDataUrl(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=> resolve(reader.result);
+    reader.onerror = ()=> reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
 function apiMyComplaints(){
   return apiGet('/api/complaints/mine');
 }
@@ -226,6 +246,9 @@ function apiOfficerQueue(params){
 }
 function apiOfficerBulk(ids, action, extra){
   return apiPost('/api/officer/bulk', { ids, action, ...(extra || {}) });
+}
+function apiOfficerResolveWithPhoto(id, afterPhotoDataUrl){
+  return apiPost(`/api/officer/complaints/${id}/resolve-with-photo`, { after_photo: afterPhotoDataUrl });
 }
 function apiOfficerTrail(complaintId){
   return apiGet(`/api/officer/complaints/${complaintId}/trail`);

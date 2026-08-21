@@ -206,7 +206,7 @@
 
         <div id="officialFields" style="display:none;">
           <div class="notice-box" style="margin-bottom:16px; font-size:0.82rem; color:var(--text-mid); border:1px dashed var(--hairline-dark); padding:10px 12px; border-radius:2px;">
-            Official accounts require a verification code issued by your department. This confirms you were given department access — it is not a substitute for your department's own identity checks.
+            Official accounts need EITHER a department verification code OR an ID document photo for manual admin review. Neither is government-database identity verification — say so if it comes up.
           </div>
           <div class="field">
             <label for="re-empid">Employee ID</label>
@@ -219,9 +219,13 @@
             <p class="error-msg">Department is required for an official account.</p>
           </div>
           <div class="field">
-            <label for="re-vcode">Officer verification code</label>
-            <input class="input" type="text" id="re-vcode" placeholder="Issued by your department admin">
-            <p class="error-msg">Enter the verification code your department gave you.</p>
+            <label for="re-vcode">Officer verification code (fast track)</label>
+            <input class="input" type="text" id="re-vcode" placeholder="Issued by your department admin — leave blank if you don't have one">
+          </div>
+          <div class="field">
+            <label for="re-iddoc">ID document photo (if you don't have a code)</label>
+            <input class="input" type="file" id="re-iddoc" accept="image/jpeg,image/png,image/webp">
+            <p class="hint">Without a code, this gets queued for an admin to manually approve before you can access the officer dashboard.</p>
           </div>
         </div>
 
@@ -334,7 +338,10 @@
     occupationField.style.display = isOfficial ? 'none' : '';
     reRegion.required = !isOfficial;
     reEdu.required = !isOfficial;
-    [reEmpid, reDept, reVcode].forEach(el=> el.required = isOfficial);
+    [reEmpid, reDept].forEach(el=> el.required = isOfficial);
+    // re-vcode and re-iddoc are both optional individually — validated
+    // together server-side (need at least one of: correct code, or a
+    // document to queue for review).
   }
 
   roleToggle.querySelectorAll('button').forEach(btn=>{
@@ -429,7 +436,19 @@
       payload.employed = employToggle.querySelector('button.active').dataset.val === 'true';
       payload.occupation = document.getElementById('re-occ').value.trim();
     }
-    apiRegister(payload).then((user)=>{
+
+    const idDocFile = role === 'official' ? document.getElementById('re-iddoc').files[0] : null;
+    const idDocPromise = idDocFile ? fileToDataUrl(idDocFile).catch(()=> null) : Promise.resolve(null);
+
+    idDocPromise.then(dataUrl=>{
+      if(dataUrl) payload.id_document = dataUrl;
+      return apiRegister(payload);
+    }).then((user)=>{
+      if(user && user.verificationStatus === 'pending_review'){
+        showToast('Registered — your ID document is queued for admin review before you can access the officer dashboard.');
+        setTimeout(()=> window.location.href = 'dashboard.html', 1400);
+        return;
+      }
       showToast('Account created — redirecting…');
       setTimeout(()=> window.location.href = nextUrl(user && user.role), 700);
     }).catch(err=>{

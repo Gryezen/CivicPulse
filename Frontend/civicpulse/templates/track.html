@@ -210,6 +210,7 @@
       <li><a href="complaint.html">File complaint</a></li>
       <li><a href="track.html" class="active">Complaints &amp; Policies</a></li>
       <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
@@ -318,8 +319,8 @@
   };
 
   const stageOrder = ['received','processing','assigned','resolved'];
-  const stampFor = { received:'stamp-received', processing:'stamp-processing', assigned:'stamp-processing', resolved:'stamp-resolved' };
-  const labelFor = { received:'Received', processing:'AI triage', assigned:'Assigned', resolved:'Resolved' };
+  const stampFor = { received:'stamp-received', processing:'stamp-processing', assigned:'stamp-processing', pending_confirmation:'stamp-processing', resolved:'stamp-resolved' };
+  const labelFor = { received:'Received', processing:'AI triage', assigned:'Assigned', pending_confirmation:'Awaiting citizen', resolved:'Resolved' };
 
   function priorityBand(score){
     if(score >= 85) return 'urgent';

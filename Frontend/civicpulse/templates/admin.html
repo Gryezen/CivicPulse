@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Review — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="stylesheet" href="style.css">
+<style>
+  .admin-head{margin-bottom:28px;}
+  .admin-head h1{font-family:var(--display); font-weight:800; font-size:clamp(1.8rem,3.4vw,2.5rem);}
+  .admin-head p{color:var(--text-mid); margin-top:8px; max-width:640px;}
+
+  .review-list{display:flex; flex-direction:column; gap:14px;}
+  .review-card{
+    background:var(--white); border:2px solid var(--ink); border-radius:2px;
+    padding:18px 20px; display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;
+  }
+  .review-doc img{width:140px; height:100px; object-fit:cover; border:2px solid var(--hairline-dark);}
+  .review-doc .no-doc{
+    width:140px; height:100px; display:flex; align-items:center; justify-content:center;
+    border:2px dashed var(--hairline-dark); color:var(--text-low); font-size:0.72rem; text-align:center; padding:8px;
+  }
+  .review-main{flex:1; min-width:220px;}
+  .review-main h3{font-family:var(--display); font-weight:700; font-size:1.05rem;}
+  .review-meta{font-family:var(--mono); font-size:0.78rem; color:var(--text-mid); margin-top:6px; display:flex; flex-direction:column; gap:2px;}
+  .review-actions{display:flex; gap:10px; align-items:flex-start;}
+  .review-actions .btn{padding:8px 16px; font-size:0.82rem;}
+  .btn-approve{background:var(--green-dim); color:var(--white); border-color:var(--green-dim);}
+  .btn-reject{background:var(--red); color:var(--white); border-color:var(--red);}
+
+  .empty-state{text-align:center; padding:50px 20px; color:var(--text-low); border:1px dashed var(--hairline-dark); border-radius:2px;}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links" id="navLinksList">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="complaint.html">File complaint</a></li>
+      <li><a href="track.html">Complaints &amp; Policies</a></li>
+      <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
+    </ul>
+    <div class="nav-right">
+      <a href="account.html" class="nav-user">
+        <div class="nav-avatar">A</div>
+        <span>Anon Citizen</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap">
+    <div class="admin-head reveal">
+      <p class="eyebrow">Admin review · /api/admin/</p>
+      <h1>Pending official verifications.</h1>
+      <div class="tri-underline" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p>
+        Accounts that registered as "Government official" without a matching department code, and attached an
+        ID document photo instead — see the <a href="javascript:void(0)" onclick="alert('This is a document-review gate, not government-database identity verification — an approving admin is visually sanity-checking that a plausible document was provided.')" style="color:var(--navy);">note on what this review actually checks</a>.
+      </p>
+    </div>
+
+    <div class="review-list" id="reviewList"></div>
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  function load(){
+    apiGet('/api/admin/pending-officials').then(list=>{
+      const el = document.getElementById('reviewList');
+      if(!list.length){
+        el.innerHTML = '<div class="empty-state">No pending official verifications right now.</div>';
+        return;
+      }
+      el.innerHTML = list.map(u=>`
+        <div class="review-card" data-id="${u.id}">
+          <div class="review-doc">
+            ${u.hasIdDocument ? `<img src="${u.idDocumentUrl}" alt="ID document" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'no-doc',textContent:'Document image unavailable'}))">` : '<div class="no-doc">No document attached</div>'}
+          </div>
+          <div class="review-main">
+            <h3>${u.name}</h3>
+            <div class="review-meta">
+              <span>${u.email}</span>
+              <span>Employee ID: ${u.employeeId || '—'}</span>
+              <span>Department: ${u.department || '—'}</span>
+            </div>
+          </div>
+          <div class="review-actions">
+            <button type="button" class="btn btn-approve approve-btn" data-id="${u.id}">Approve</button>
+            <button type="button" class="btn btn-reject reject-btn" data-id="${u.id}">Reject</button>
+          </div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.approve-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          apiPost(`/api/admin/officials/${btn.dataset.id}/approve`, {}).then(()=>{
+            showToast('Approved — official can now access the officer dashboard.');
+            load();
+          }).catch(err=> showToast(err.message));
+        });
+      });
+      el.querySelectorAll('.reject-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          apiPost(`/api/admin/officials/${btn.dataset.id}/reject`, {}).then(()=>{
+            showToast('Rejected.');
+            load();
+          }).catch(err=> showToast(err.message));
+        });
+      });
+    }).catch(err=>{
+      document.getElementById('reviewList').innerHTML = `<div class="empty-state">${err.message}</div>`;
+    });
+  }
+  load();
+</script>
+</body>
+</html>

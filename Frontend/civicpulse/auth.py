@@ -7,12 +7,13 @@ default) just works. Endpoints:
 
     POST  /api/auth/register    { name, email, password, region, education,
                                    employed, occupation, language, role,
-                                   employee_id, department, verification_code }
+                                   employee_id, department, verification_code,
+                                   id_document }
     POST  /api/auth/login       { email, password }
     POST  /api/auth/logout
     GET   /api/user/me
     PATCH /api/user/me          { any subset of the profile fields above,
-                                   except password, role, employee_id, department }
+                                   plus `phone`, except password, role, employee_id, department }
     POST  /api/user/me/password { current_password, new_password }
 
 All responses are JSON. Errors are `{"error": "message"}` with a 4xx/5xx
@@ -20,14 +21,20 @@ status — the frontend's fetch wrappers (see main.js) surface `error` in a
 toast.
 
 Officer self-registration: role="official" additionally requires
-employee_id, department, and a verification_code matching
-OFFICIAL_VERIFICATION_CODE (see app.py) — a shared code meant to be
-distributed to real officials out-of-band (department circular, onboarding
-email), not real identity verification. This is a prototype-appropriate
-gate against a random citizen ticking "I'm an official", not a KYC/
-biometric check — say so if asked. role/employee_id/department are
-deliberately NOT patchable via PATCH /api/user/me — no upgrading a citizen
-account to official after the fact through the account-settings form.
+employee_id and department, plus ONE of:
+  - a verification_code matching OFFICIAL_VERIFICATION_CODE (see app.py)
+    — a shared code meant to be distributed to real officials out-of-band
+    (department circular, onboarding email) — verifies instantly
+    (verification_status="auto_verified")
+  - an id_document (base64 image) — queued for an admin to manually
+    review via admin.py (verification_status="pending_review";
+    is_verified stays False, so /officer stays inaccessible, until an
+    admin approves)
+Neither path is real identity verification/KYC — say so if asked; see
+admin.py's own docstring for exactly what an admin review does and
+doesn't check. role/employee_id/department are deliberately NOT patchable
+via PATCH /api/user/me — no upgrading a citizen account to official after
+the fact through the account-settings form.
 """
 
 import os
@@ -86,6 +93,8 @@ def register():
     employee_id = ""
     department = ""
     is_verified = False
+    verification_status = "none"
+    id_document = data.get("id_document")  # optional base64 image — see uploads.py
 
     if role == "official":
         employee_id = (data.get("employee_id") or "").strip()
@@ -97,24 +106,52 @@ def register():
             return _err("Employee ID is required for an official account.")
         if not department:
             return _err("Department is required for an official account.")
-        if not expected_code:
-            # Fail closed: if the deployment never set a code, official
-            # self-registration is disabled outright rather than silently
-            # accepting anything.
-            return _err("Official registration is not open on this deployment. Contact your department admin.", 403)
-        if verification_code.strip().upper() != expected_code.strip().upper():
-            return _err("Invalid officer verification code. Check the code your department issued you.", 403)
 
-        is_verified = True
+        code_matches = bool(expected_code) and verification_code.upper() == expected_code.upper()
+
+        if code_matches:
+            # Fast track: a correct shared department code verifies
+            # instantly. Same prototype-grade caveat as before — this is
+            # not government-database identity verification.
+            is_verified = True
+            verification_status = "auto_verified"
+        elif id_document:
+            # No/wrong code, but an ID document was attached — queue for
+            # an admin to manually review and approve/reject (see
+            # admin.py) instead of hard-rejecting the registration.
+            is_verified = False
+            verification_status = "pending_review"
+        else:
+            # Neither a valid code nor a document to review — nothing for
+            # an admin to check, so this registration can't be queued.
+            if not expected_code:
+                return _err(
+                    "Official registration needs either a department verification code (not configured on "
+                    "this deployment) or an ID document for manual review. Attach a document to continue.", 403
+                )
+            return _err(
+                "Invalid verification code. Either check the code your department issued you, or attach an "
+                "ID document photo instead — an admin will manually review it.", 403
+            )
 
     user = User(
         name=name, email=email, region=region, education=education,
         employed=employed, occupation=occupation, language=language,
-        role=role, is_verified=is_verified,
+        role=role, is_verified=is_verified, verification_status=verification_status,
         employee_id=employee_id or None, department=department or None,
     )
     user.set_password(password)
     db.session.add(user)
+    db.session.flush()  # need user.id before saving an ID document under it
+
+    if role == "official" and id_document:
+        try:
+            from uploads import save_upload
+            path, _ = save_upload(f"user-{user.id}", id_document, "id-document")
+            user.id_document_path = path
+        except Exception:
+            pass  # a failed document upload shouldn't block registration — the pending_review queue still needs a human either way
+
     db.session.commit()
 
     login_user(user)
@@ -185,6 +222,16 @@ def update_me():
         if language not in VALID_LANGUAGES:
             return _err("Unsupported language.")
         current_user.language = language
+
+    if "phone" in data:
+        phone = re.sub(r"[^\d+]", "", data.get("phone") or "")
+        if phone and not re.match(r"^\+?\d{8,15}$", phone):
+            return _err("Enter a valid phone number (8-15 digits, optional leading +).")
+        if phone:
+            existing = User.query.filter_by(phone=phone).first()
+            if existing and existing.id != current_user.id:
+                return _err("Another account already uses this phone number.", 409)
+        current_user.phone = phone or None
 
     db.session.commit()
     return jsonify(current_user.to_dict())

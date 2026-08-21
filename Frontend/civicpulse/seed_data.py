@@ -55,8 +55,43 @@ DEMO_OFFICER_ACCOUNT = {
     "language": "English",
     "role": "official",
     "is_verified": True,
+    "verification_status": "auto_verified",
     "employee_id": "DEMO-OFC-001",
     "department": "Ward Grievance Cell (Demo)",
+}
+
+# Seeded directly — never self-registerable (see admin.py's module
+# docstring). Password via DEMO_ADMIN_PASSWORD env var.
+DEMO_ADMIN_ACCOUNT = {
+    "name": "System Admin",
+    "email": "admin@civicpulse.local",
+    "region": "Chennai, TN",
+    "education": "Postgraduate",
+    "employed": True,
+    "occupation": "CivicPulse Platform Admin",
+    "language": "English",
+    "role": "admin",
+    "is_verified": True,
+    "verification_status": "auto_verified",
+}
+
+# A second demo official seeded in the pending_review state (no document
+# attached — this is a fixture for exercising /admin's UI without needing
+# to walk through the register form with a real image upload first) so
+# the admin dashboard isn't empty on a fresh install.
+DEMO_PENDING_OFFICER_ACCOUNT = {
+    "name": "Pending Officer (Demo)",
+    "email": "pending-officer@civicpulse.local",
+    "region": "Coimbatore, TN",
+    "education": "Undergraduate",
+    "employed": True,
+    "occupation": "Sanitation Inspector",
+    "language": "English",
+    "role": "official",
+    "is_verified": False,
+    "verification_status": "pending_review",
+    "employee_id": "DEMO-OFC-002",
+    "department": "Sanitation & Waste (Demo)",
 }
 
 # (title, body, category, department, authority, language, priority, stage, filed_at, files, note)

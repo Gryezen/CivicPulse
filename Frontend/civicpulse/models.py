@@ -39,20 +39,31 @@ class User(UserMixin, db.Model):
     employed = db.Column(db.Boolean, nullable=False, default=True)
     occupation = db.Column(db.String(160), nullable=True)
     language = db.Column(db.String(30), nullable=False, default="English")
+    # Optional — links this account to an SMS/IVR status-check channel
+    # (see ivr.py) for citizens without a smartphone/data connection.
+    # Stored E.164-ish (digits, optional leading +), not validated against
+    # a real carrier — set from the account page.
+    phone = db.Column(db.String(20), nullable=True, index=True)
 
-    # "citizen" (default) or "official" — gates /officer (see officer.py).
-    # Self-registration as "official" requires a correct verification code
-    # (see auth.py's register() and OFFICIAL_VERIFICATION_CODE in app.py) —
-    # this is a prototype-grade gate (a shared code distributed to a
-    # department, not real identity verification/KYC), disclosed as such in
-    # the register form and the README. is_verified is what officer.py's
-    # role check actually gates on, kept separate from `role` so a future
-    # manual-approval workflow (an admin flips is_verified after checking
-    # documents) doesn't require changing what "role" means.
+    # "citizen", "official", or "admin" (see admin.py — admin is
+    # seed/DB-only, never self-registered). Self-registration as
+    # "official" has TWO paths (see auth.py's register()):
+    #   - a correct OFFICIAL_VERIFICATION_CODE -> instant is_verified=True
+    #     ("fast track": a shared code distributed to a department)
+    #   - no/wrong code but an ID document photo attached -> queued as
+    #     verification_status="pending_review" for an admin to manually
+    #     approve/reject (see admin.py) by looking at the uploaded document
+    # Neither path is real government-database identity verification/KYC —
+    # disclosed as such in the register form and the README. is_verified
+    # is what officer.py's role check actually gates on, kept separate
+    # from `role` so this two-path workflow didn't require changing what
+    # "role" means.
     role = db.Column(db.String(20), nullable=False, default="citizen")
     is_verified = db.Column(db.Boolean, nullable=False, default=False)
     employee_id = db.Column(db.String(80), nullable=True)
     department = db.Column(db.String(160), nullable=True)
+    verification_status = db.Column(db.String(20), nullable=False, default="none")  # none|auto_verified|pending_review|approved|rejected
+    id_document_path = db.Column(db.String(300), nullable=True)
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -74,9 +85,13 @@ class User(UserMixin, db.Model):
         # Both conditions matter: role alone is not enough to reach
         # /officer or any /api/officer/* route — see officer.py's
         # _official_required, which reads this property, not `role`
-        # directly, specifically so a code fix here (e.g. a future manual-
-        # approval workflow) doesn't require touching every call site.
+        # directly, specifically so a code fix here (e.g. the pending-
+        # review path finishing) doesn't require touching every call site.
         return self.role == "official" and self.is_verified
+
+    @property
+    def is_admin(self):
+        return self.role == "admin"
 
     # --- serialization ---------------------------------------------------
     def to_dict(self):
@@ -90,11 +105,16 @@ class User(UserMixin, db.Model):
             "employed": bool(self.employed),
             "occupation": self.occupation or "",
             "language": self.language or "English",
+            "phone": self.phone or "",
             "role": self.role or "citizen",
             "isVerified": bool(self.is_verified),
             "isOfficial": self.is_official,
+            "isAdmin": self.is_admin,
             "employeeId": self.employee_id or "",
             "department": self.department or "",
+            "verificationStatus": self.verification_status or "none",
+            "hasIdDocument": bool(self.id_document_path),
+            "idDocumentUrl": f"/uploads/{self.id_document_path}" if self.id_document_path else None,
         }
 
 
@@ -182,6 +202,22 @@ class Complaint(db.Model):
     # indefinitely.
     dispute_count = db.Column(db.Integer, nullable=False, default=0)
 
+    # Two-party closure with lightweight photo verification (see
+    # uploads.py — read that module's docstring before assuming this is
+    # more than it is). before_photo is attached at filing time (optional);
+    # after_photo is attached when an official resolves with photo
+    # evidence. pending_confirmation means an official has asserted this
+    # is fixed but the CITIZEN hasn't confirmed yet — only the citizen's
+    # own confirm/dispute actually closes or reopens it (see
+    # complaints.py's /confirm and /dispute).
+    before_photo_path = db.Column(db.String(300), nullable=True)
+    before_photo_hash = db.Column(db.BigInteger, nullable=True)
+    after_photo_path = db.Column(db.String(300), nullable=True)
+    after_photo_hash = db.Column(db.BigInteger, nullable=True)
+    photo_similarity = db.Column(db.Float, nullable=True)  # 0-1, before vs after — see uploads.py
+    pending_confirmation = db.Column(db.Boolean, nullable=False, default=False)
+    citizen_confirmed_at = db.Column(db.DateTime, nullable=True)
+
     stage = db.Column(db.String(20), nullable=False, default="received")  # received/processing/assigned/resolved
     files_count = db.Column(db.Integer, nullable=False, default=0)
     note = db.Column(db.Text, nullable=True)  # "next update" note shown in the queue detail
@@ -216,6 +252,11 @@ class Complaint(db.Model):
             "bundleId": self.bundle_id,
             "unverifiedAllegation": bool(self.unverified_allegation),
             "disputeCount": self.dispute_count,
+            "beforePhotoUrl": f"/uploads/{self.before_photo_path}" if self.before_photo_path else None,
+            "afterPhotoUrl": f"/uploads/{self.after_photo_path}" if self.after_photo_path else None,
+            "photoSimilarity": self.photo_similarity,
+            "pendingConfirmation": bool(self.pending_confirmation),
+            "citizenConfirmedAt": self.citizen_confirmed_at.isoformat() if self.citizen_confirmed_at else None,
             "stage": self.stage,
             "files": self.files_count,
             "note": self.note or "",

@@ -31,6 +31,7 @@ from auto_resolve import attempt_auto_resolve
 from clustering import assign_cluster
 from splitting import split_complaint
 from search import extract_terms, score_complaint
+from uploads import save_upload, UploadError
 
 complaints_bp = Blueprint("complaints", __name__)
 
@@ -200,6 +201,7 @@ def create_complaint():
     body = (data.get("body") or "").strip()
     language = data.get("language") or "English"
     files_count = int(data.get("files_count") or 0)
+    before_photo = data.get("before_photo")  # optional base64 data URL — see uploads.py
 
     if not title:
         return _err("Title is required.")
@@ -224,6 +226,19 @@ def create_complaint():
         for c in created:
             c.bundle_id = bundle_root_id
 
+    # Before-photo (see uploads.py) attaches to the primary complaint only
+    # — a single photo doesn't map cleanly onto N split sub-issues, and
+    # the primary is what the citizen sees/tracks first.
+    if before_photo:
+        try:
+            path, ahash = save_upload(created[0].id, before_photo, "before")
+            created[0].before_photo_path = path
+            created[0].before_photo_hash = ahash
+        except UploadError as e:
+            # Don't fail the whole filing over a bad photo — the complaint
+            # itself is still valid and already classified/clustered above.
+            created[0].note = (created[0].note or "") + f" (Photo not saved: {e})"
+
     db.session.commit()
 
     primary = created[0]
@@ -233,28 +248,59 @@ def create_complaint():
     return jsonify(payload), 201
 
 
+@complaints_bp.post("/api/complaints/<string:complaint_id>/confirm")
+@login_required
+def confirm_complaint(complaint_id):
+    """Two-party closure (ideation doc gap #6) — the CITIZEN side. An
+    official asserting "resolved" only ever sets `pending_confirmation`
+    (see officer.py's bulk 'resolve' action and resolve-with-photo
+    endpoint); this is what actually moves a complaint to `stage ==
+    "resolved"`. Nothing about the photo-hash similarity score gates this
+    — it's shown to the citizen as context, but their own judgment is
+    what closes the ticket, on purpose (see uploads.py's docstring for why
+    an automated pixel-comparison should never be the sole gate here).
+    """
+    complaint = Complaint.query.get(complaint_id)
+    if not complaint:
+        return _err("Complaint not found.", 404)
+    if complaint.user_id != current_user.id:
+        return _err("You can only confirm your own complaints.", 403)
+    if not complaint.pending_confirmation:
+        return _err("This complaint isn't awaiting your confirmation.")
+
+    from datetime import datetime, timezone
+    complaint.stage = "resolved"
+    complaint.pending_confirmation = False
+    complaint.citizen_confirmed_at = datetime.now(timezone.utc)
+    complaint.note = "Confirmed fixed by the citizen — closed."
+    db.session.commit()
+    return jsonify(complaint.to_dict())
+
+
 @complaints_bp.post("/api/complaints/<string:complaint_id>/dispute")
 @login_required
 def dispute_complaint(complaint_id):
-    """A citizen disputes a "resolved" complaint — 'nothing actually
-    changed'. Ties to ideation doc gap #6 (breaking self-graded closure):
-    rather than looping the same resolve/dispute cycle indefinitely, after
-    DISPUTE_ESCALATION_THRESHOLD disputes the complaint is forced up a
-    tier (audit_tier) so it lands in front of an official through the
-    officer dashboard's highest-priority lane, not just re-queued at the
-    same level that already failed it once.
+    """A citizen disputes a complaint an official marked/asserted resolved
+    — 'nothing actually changed', or, from `pending_confirmation`, 'that
+    after-photo doesn't actually show it fixed'. Ties to ideation doc gap
+    #6 (breaking self-graded closure): rather than looping the same
+    resolve/dispute cycle indefinitely, after DISPUTE_ESCALATION_THRESHOLD
+    disputes the complaint is forced up a tier (audit_tier) so it lands in
+    front of an official through the officer dashboard's highest-priority
+    lane, not just re-queued at the same level that already failed it once.
     """
     complaint = Complaint.query.get(complaint_id)
     if not complaint:
         return _err("Complaint not found.", 404)
     if complaint.user_id != current_user.id:
         return _err("You can only dispute your own complaints.", 403)
-    if complaint.stage != "resolved":
-        return _err("Only a resolved complaint can be disputed.")
+    if complaint.stage != "resolved" and not complaint.pending_confirmation:
+        return _err("Only a resolved (or pending-confirmation) complaint can be disputed.")
 
     complaint.dispute_count += 1
     complaint.stage = "processing"
     complaint.auto_resolved = False
+    complaint.pending_confirmation = False
 
     if complaint.dispute_count >= DISPUTE_ESCALATION_THRESHOLD:
         complaint.audit_tier = True

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMS Status-Check Demo — CivicPulse</title>
+<link rel="icon" href="img/favicon.ico" sizes="any">
+<link rel="stylesheet" href="style.css">
+<style>
+  .sms-wrap{max-width:480px; margin:0 auto;}
+  .sms-phone{
+    background:var(--white); border:2px solid var(--ink); border-radius:18px;
+    overflow:hidden; box-shadow:0 8px 0 var(--hairline-dark);
+  }
+  .sms-topbar{background:var(--navy); color:var(--white); padding:14px 16px; font-family:var(--mono); font-size:0.82rem;}
+  .sms-thread{height:420px; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; background:var(--surface);}
+  .sms-bubble{max-width:80%; padding:9px 13px; border-radius:14px; font-size:0.86rem; line-height:1.45; white-space:pre-wrap;}
+  .sms-bubble.out{align-self:flex-end; background:var(--navy); color:var(--white); border-bottom-right-radius:3px;}
+  .sms-bubble.in{align-self:flex-start; background:var(--white); border:1px solid var(--hairline-dark); border-bottom-left-radius:3px;}
+  .sms-inputbar{display:flex; gap:8px; padding:12px; border-top:2px solid var(--ink); background:var(--white);}
+  .sms-inputbar input{flex:1; border:2px solid var(--hairline-dark); border-radius:14px; padding:9px 14px; font-size:0.86rem;}
+  .sms-inputbar input:focus{outline:none; border-color:var(--navy);}
+  .sms-inputbar button{border-radius:14px; padding:9px 18px;}
+  .sms-phone-field{margin-bottom:16px;}
+  .sms-quick{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  .sms-quick button{font-size:0.74rem; padding:5px 11px;}
+</style>
+</head>
+<body>
+<div class="gov-topbar" role="region" aria-label="Accessibility options">
+  <div class="wrap gov-topbar-inner">
+    <a href="#main" class="skip-link">Skip to main content</a>
+    <span class="gov-topbar-left">भारत सरकार · Government of India — prototype for demonstration</span>
+    <div class="gov-topbar-right">
+      <button type="button" id="screenReaderBtn">Screen Reader Access</button>
+    </div>
+  </div>
+</div>
+<div class="tricolour-rule" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="logo"><img src="img/emblem.png" alt="" aria-hidden="true" class="emblem-mark">Civic<span>Pulse</span></a>
+    <ul class="nav-links" id="navLinksList">
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="complaint.html">File complaint</a></li>
+      <li><a href="track.html">Complaints &amp; Policies</a></li>
+      <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
+    </ul>
+    <div class="nav-right">
+      <a href="account.html" class="nav-user">
+        <div class="nav-avatar">A</div>
+        <span>Anon Citizen</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main class="page-shell" id="main">
+  <div class="wrap sms-wrap">
+    <p class="eyebrow">SMS / IVR status-check · demo</p>
+    <h1 style="font-family:var(--display); font-weight:800; font-size:1.7rem; margin-bottom:8px;">Try it like a text message.</h1>
+    <p style="color:var(--text-mid); margin-bottom:20px; font-size:0.9rem;">
+      This simulates what a citizen without the app would experience over plain SMS. Nothing here sends a real
+      text — it calls the same message-handling logic (<code>ivr.py</code>) that a real gateway webhook would call.
+      Link a phone number from your <a href="account.html" style="color:var(--navy);">account page</a> first, then
+      enter the same number below.
+    </p>
+
+    <div class="sms-phone-field">
+      <label for="demoPhone" style="font-size:0.8rem; font-weight:700; color:var(--text-mid); display:block; margin-bottom:6px;">Phone number to simulate</label>
+      <input class="input" type="tel" id="demoPhone" placeholder="+91XXXXXXXXXX" style="max-width:260px;">
+    </div>
+
+    <div class="sms-phone">
+      <div class="sms-topbar">CivicPulse Status Line</div>
+      <div class="sms-thread" id="smsThread">
+        <div class="sms-bubble in">Text STATUS for your latest complaints, or STATUS &lt;id&gt; for one specific complaint. Text HELP any time.</div>
+      </div>
+      <div class="sms-inputbar">
+        <input type="text" id="smsInput" placeholder="Type a message…" maxlength="160">
+        <button type="button" class="btn btn-primary" id="smsSend">Send</button>
+      </div>
+    </div>
+
+    <div class="sms-quick">
+      <button type="button" class="btn btn-ghost quick-msg" data-msg="STATUS">STATUS</button>
+      <button type="button" class="btn btn-ghost quick-msg" data-msg="HELP">HELP</button>
+    </div>
+  </div>
+</main>
+
+<footer class="meta">
+  <div class="wrap meta-inner">
+    <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
+    <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+<script>
+  const thread = document.getElementById('smsThread');
+  const input = document.getElementById('smsInput');
+  const phoneField = document.getElementById('demoPhone');
+
+  apiGet('/api/user/me').then(u=>{ if(u.phone) phoneField.value = u.phone; }).catch(()=>{});
+
+  function addBubble(text, dir){
+    const el = document.createElement('div');
+    el.className = `sms-bubble ${dir}`;
+    el.textContent = text;
+    thread.appendChild(el);
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  function send(text){
+    if(!text.trim()) return;
+    const phone = phoneField.value.trim();
+    if(!phone){
+      showToast('Enter a phone number first — this simulates the number an SMS gateway would report.');
+      return;
+    }
+    addBubble(text, 'out');
+    input.value = '';
+    apiPost('/api/ivr/demo', { phone, text }).then(res=>{
+      addBubble(res.reply, 'in');
+    }).catch(err=>{
+      addBubble('(error: ' + err.message + ')', 'in');
+    });
+  }
+
+  document.getElementById('smsSend').addEventListener('click', ()=> send(input.value));
+  input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') send(input.value); });
+  document.querySelectorAll('.quick-msg').forEach(btn=>{
+    btn.addEventListener('click', ()=> send(btn.dataset.msg));
+  });
+</script>
+</body>
+</html>

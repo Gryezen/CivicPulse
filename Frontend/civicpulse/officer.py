@@ -1,16 +1,26 @@
 """
 Officer dashboard API.
 
-    GET  /api/officer/summary   counts for the top-of-page stat strip + broad-category breakdown
-    GET  /api/officer/queue     the triage queue — audit-tier/threat/corruption first, paginated
-    POST /api/officer/bulk      assign / escalate / resolve one or more complaints at once
+    GET  /api/officer/summary                            counts for the top-of-page stat strip + broad-category breakdown
+    GET  /api/officer/queue                               the triage queue — audit-tier/threat/corruption first, paginated
+    POST /api/officer/bulk                                assign / escalate / resolve one or more complaints at once
+    POST /api/officer/complaints/<id>/resolve-with-photo   resolve with after-photo evidence — see uploads.py
+    GET  /api/officer/complaints/<id>/trail                classification + auto-resolution audit trail
+    POST /api/officer/policies/sync                        trigger policy_ingest.py — see that file's docstring
 
 All routes require login AND current_user.is_official — see
 _official_required below. This is a prototype-grade role check (a real
 deployment would gate this at SSO/department-directory level, see
-models.User.role's own comment) but it's enforced server-side, not just
-hidden in the frontend, same principle app.py already applies to
-PROTECTED_PAGES.
+models.User's own comments on `role`/`is_verified`) but it's enforced
+server-side, not just hidden in the frontend, same principle app.py
+already applies to PROTECTED_PAGES.
+
+Note that the bulk 'resolve' action and resolve-with-photo do NOT set
+`stage == "resolved"` directly — they set `pending_confirmation`, and only
+the citizen's own confirm/dispute (see complaints.py) actually closes or
+reopens the ticket. This is the two-party closure mechanism from the
+ideation doc's gap #6 — see complaints.py's /confirm docstring for why an
+officer's assertion alone was deliberately not made sufficient.
 
 Why a separate blueprint from complaints.py: the citizen-facing queue
 (GET /api/complaints) is deliberately unauthenticated-as-to-role — any
@@ -55,7 +65,7 @@ def summary():
     total = Complaint.query.count()
     by_stage = {
         stage: Complaint.query.filter_by(stage=stage).count()
-        for stage in ("received", "processing", "assigned", "resolved")
+        for stage in ("received", "processing", "assigned", "pending_confirmation", "resolved")
     }
     needs_review = Complaint.query.filter_by(needs_review=True).count()
     corruption = Complaint.query.filter_by(corruption_flag=True).count()
@@ -225,11 +235,64 @@ def bulk_action():
             c.priority = min(99, c.priority + 15)
             c.note = (c.note + " " if c.note else "") + "[Escalated by an officer.]"
         elif action == "resolve":
-            c.stage = "resolved"
-            c.note = "Marked resolved by an officer."
+            # Two-party closure (ideation doc gap #6) — an official
+            # asserting "resolved" doesn't itself close the ticket; it
+            # sets pending_confirmation and waits on the CITIZEN's own
+            # confirm/dispute (see complaints.py's /confirm, /dispute).
+            # See resolve_with_photo() below for the photo-evidence
+            # variant of this same transition.
+            c.stage = "pending_confirmation"
+            c.pending_confirmation = True
+            c.note = "An officer marked this resolved — awaiting the citizen's confirmation before final closure."
 
     db.session.commit()
     return jsonify({"updated": len(complaints)})
+
+
+@officer_bp.post("/api/officer/complaints/<string:complaint_id>/resolve-with-photo")
+@_official_required
+def resolve_with_photo(complaint_id):
+    """Same transition as the bulk 'resolve' action, but attaches an
+    after-photo and computes a lightweight similarity score against the
+    complaint's before-photo (if one exists) — see uploads.py's docstring
+    for exactly what that score does and doesn't mean. Body:
+    {"after_photo": "data:image/jpeg;base64,..."}"""
+    from uploads import save_upload, similarity_from_hashes, UploadError
+
+    complaint = Complaint.query.get(complaint_id)
+    if not complaint:
+        return _err("Complaint not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    after_photo = data.get("after_photo")
+    if not after_photo:
+        return _err("after_photo (base64 data URL) is required — use the bulk 'resolve' action if you have no photo.")
+
+    try:
+        path, ahash = save_upload(complaint.id, after_photo, "after")
+    except UploadError as e:
+        return _err(str(e))
+
+    complaint.after_photo_path = path
+    complaint.after_photo_hash = ahash
+    if complaint.before_photo_hash is not None:
+        complaint.photo_similarity = similarity_from_hashes(complaint.before_photo_hash, ahash)
+
+    complaint.stage = "pending_confirmation"
+    complaint.pending_confirmation = True
+    similarity_note = ""
+    if complaint.photo_similarity is not None and complaint.photo_similarity > 0.92:
+        similarity_note = (
+            " Note: the after-photo looks very similar to the before-photo (low visual change detected) — "
+            "worth double-checking before the citizen confirms."
+        )
+    complaint.note = (
+        "An officer marked this resolved with photo evidence — awaiting the citizen's confirmation "
+        "before final closure." + similarity_note
+    )
+
+    db.session.commit()
+    return jsonify(complaint.to_dict())
 
 
 @officer_bp.post("/api/officer/policies/sync")

@@ -25,6 +25,8 @@ from extensions import db, login_manager
 from auth import auth_bp
 from complaints import complaints_bp
 from officer import officer_bp
+from ivr import ivr_bp
+from admin import admin_bp
 from policy_engine import PolicyRecommender, find_policy, load_policies, seed_policies_if_empty
 
 load_dotenv()
@@ -55,6 +57,8 @@ login_manager.login_view = "login"
 app.register_blueprint(auth_bp)
 app.register_blueprint(complaints_bp)
 app.register_blueprint(officer_bp)
+app.register_blueprint(ivr_bp)
+app.register_blueprint(admin_bp)
 
 
 @login_manager.user_loader
@@ -110,10 +114,21 @@ def _ensure_new_columns():
         "ALTER TABLE policies ADD COLUMN IF NOT EXISTS external_id VARCHAR(160)",
         "ALTER TABLE policies ADD COLUMN IF NOT EXISTS source_url VARCHAR(500)",
         "ALTER TABLE policies ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS before_photo_path VARCHAR(300)",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS before_photo_hash BIGINT",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS after_photo_path VARCHAR(300)",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS after_photo_hash BIGINT",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS photo_similarity FLOAT",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS pending_confirmation BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS citizen_confirmed_at TIMESTAMP",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'citizen'",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id VARCHAR(80)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(160)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_users_phone ON users(phone) WHERE phone IS NOT NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) NOT NULL DEFAULT 'none'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS id_document_path VARCHAR(300)",
     ]
     for stmt in statements:
         try:
@@ -126,19 +141,35 @@ def _ensure_new_columns():
 with app.app_context():
     from datetime import datetime, timedelta, timezone
     from models import User, Complaint, ClassificationLog, Policy  # noqa: F401  (registers models with SQLAlchemy)
-    from seed_data import DEMO_ACCOUNT, DEMO_OFFICER_ACCOUNT, DEMO_QUEUE_COMPLAINTS, dataset_sample_complaints
+    from seed_data import (
+        DEMO_ACCOUNT, DEMO_OFFICER_ACCOUNT, DEMO_ADMIN_ACCOUNT, DEMO_PENDING_OFFICER_ACCOUNT,
+        DEMO_QUEUE_COMPLAINTS, dataset_sample_complaints,
+    )
 
     db.create_all()
     _ensure_new_columns()
     seed_policies_if_empty()
 
-    # Officer demo login — seeded independently of the complaint-seeding
-    # block below (account existence shouldn't depend on whether complaints
-    # happen to be empty). Safe to run every boot: only inserts if missing.
+    # Officer/admin/pending-officer demo logins — seeded independently of
+    # the complaint-seeding block below (account existence shouldn't
+    # depend on whether complaints happen to be empty). Safe to run every
+    # boot: only inserts if missing.
     if User.query.filter_by(email=DEMO_OFFICER_ACCOUNT["email"]).first() is None:
         officer_user = User(**DEMO_OFFICER_ACCOUNT)
         officer_user.set_password(os.environ.get("DEMO_OFFICER_PASSWORD", "demo-officer-not-for-login"))
         db.session.add(officer_user)
+        db.session.commit()
+
+    if User.query.filter_by(email=DEMO_ADMIN_ACCOUNT["email"]).first() is None:
+        admin_user = User(**DEMO_ADMIN_ACCOUNT)
+        admin_user.set_password(os.environ.get("DEMO_ADMIN_PASSWORD", "demo-admin-not-for-login"))
+        db.session.add(admin_user)
+        db.session.commit()
+
+    if User.query.filter_by(email=DEMO_PENDING_OFFICER_ACCOUNT["email"]).first() is None:
+        pending_user = User(**DEMO_PENDING_OFFICER_ACCOUNT)
+        pending_user.set_password(os.environ.get("DEMO_OFFICER_PASSWORD", "demo-officer-not-for-login"))
+        db.session.add(pending_user)
         db.session.commit()
 
     # Seed a handful of demo complaints (under a system "Demo Citizen" account)
@@ -236,6 +267,17 @@ def img_asset(filename):
     return send_from_directory(app.static_folder + "/img", filename)
 
 
+@app.route("/uploads/<path:filename>")
+@login_required
+def uploaded_file(filename):
+    # Login-gated (not fully public) — these are complaint evidence
+    # photos, not marketing assets like /img/. send_from_directory
+    # rejects any path that escapes UPLOAD_ROOT, so this is safe against
+    # ../ traversal in `filename` regardless of what's passed in.
+    from uploads import UPLOAD_ROOT
+    return send_from_directory(UPLOAD_ROOT, filename)
+
+
 def _serve_page(page):
     template = PAGES.get(page)
     if template is None:
@@ -273,6 +315,22 @@ def officer_dashboard():
     if not current_user.is_official:
         return render_template("index.html"), 403
     return render_template("officer.html")
+
+
+@app.route("/sms-demo")
+@app.route("/sms-demo.html")
+@login_required
+def sms_demo():
+    return render_template("sms-demo.html")
+
+
+@app.route("/admin")
+@app.route("/admin.html")
+@login_required
+def admin_dashboard():
+    if not current_user.is_admin:
+        return render_template("index.html"), 403
+    return render_template("admin.html")
 
 
 @app.route("/dashboard.html")

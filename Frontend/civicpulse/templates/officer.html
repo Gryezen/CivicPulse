@@ -156,6 +156,7 @@
       <li><a href="complaint.html">File complaint</a></li>
       <li><a href="track.html">Complaints &amp; Policies</a></li>
       <li class="officer-only" style="display:none;"><a href="officer.html" class="active">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
@@ -214,6 +215,7 @@
           <option value="received">Received</option>
           <option value="processing">AI triage</option>
           <option value="assigned">Assigned</option>
+          <option value="pending_confirmation">Awaiting citizen confirmation</option>
           <option value="resolved">Resolved</option>
         </select>
       </div>
@@ -250,8 +252,8 @@
   let activeBroadCategory = 'all';
   const PAGE_SIZE = 25;
 
-  const stampFor = { received:'stamp-received', processing:'stamp-processing', assigned:'stamp-processing', resolved:'stamp-resolved' };
-  const labelFor = { received:'Received', processing:'AI triage', assigned:'Assigned', resolved:'Resolved' };
+  const stampFor = { received:'stamp-received', processing:'stamp-processing', assigned:'stamp-processing', pending_confirmation:'stamp-processing', resolved:'stamp-resolved' };
+  const labelFor = { received:'Received', processing:'AI triage', assigned:'Assigned', pending_confirmation:'Awaiting citizen', resolved:'Resolved' };
 
   function priorityBand(score){
     if(score >= 85) return 'urgent';
@@ -301,8 +303,25 @@
   }
 
   function buildDetail(d){
+    const photos = (d.beforePhotoUrl || d.afterPhotoUrl) ? `
+      <div style="display:flex; gap:14px; margin:10px 0; flex-wrap:wrap;">
+        ${d.beforePhotoUrl ? `<a href="${d.beforePhotoUrl}" target="_blank" rel="noopener"><img src="${d.beforePhotoUrl}" alt="Before photo" style="width:120px; height:90px; object-fit:cover; border:2px solid var(--ink);"><div style="font-size:0.7rem; color:var(--text-low); margin-top:2px;">Before</div></a>` : ''}
+        ${d.afterPhotoUrl ? `<a href="${d.afterPhotoUrl}" target="_blank" rel="noopener"><img src="${d.afterPhotoUrl}" alt="After photo" style="width:120px; height:90px; object-fit:cover; border:2px solid var(--ink);"><div style="font-size:0.7rem; color:var(--text-low); margin-top:2px;">After${d.photoSimilarity !== null ? ` · ${Math.round((1-d.photoSimilarity)*100)}% visual change` : ''}</div></a>` : ''}
+      </div>
+    ` : '';
+
+    const resolvableStage = !['resolved', 'pending_confirmation'].includes(d.stage);
+    const resolveAction = resolvableStage ? `
+      <label class="btn btn-ghost" style="cursor:pointer; display:inline-block;">
+        Resolve with after-photo
+        <input type="file" accept="image/jpeg,image/png,image/webp" class="after-photo-input" data-id="${d.id}" style="display:none;">
+      </label>
+      <button type="button" class="btn btn-primary quick-resolve-btn" data-id="${d.id}">Resolve (no photo)</button>
+    ` : (d.stage === 'pending_confirmation' ? '<span style="font-size:0.78rem; color:var(--text-low);">Awaiting the citizen\'s own confirmation — see two-party closure in the README.</span>' : '');
+
     return `
       <div class="off-detail-body">${d.body}</div>
+      ${photos}
       <div class="off-detail-meta">
         <span>Filed ${d.filedDisplay}</span>
         <span>Department: ${d.department}</span>
@@ -312,9 +331,33 @@
       </div>
       <div class="off-detail-actions">
         <button type="button" class="btn btn-ghost trail-btn" data-id="${d.id}">View audit trail</button>
+        ${resolveAction}
       </div>
       <div class="off-trail" id="trail-${d.id}"></div>
     `;
+  }
+
+  function wireDetailActions(offList){
+    offList.querySelectorAll('.after-photo-input').forEach(input=>{
+      input.addEventListener('change', ()=>{
+        const file = input.files[0];
+        if(!file) return;
+        fileToDataUrl(file).then(dataUrl=>{
+          return apiOfficerResolveWithPhoto(input.dataset.id, dataUrl);
+        }).then(()=>{
+          showToast('Resolved with photo — awaiting citizen confirmation.');
+          loadSummary(); loadQueue();
+        }).catch(err=> showToast(err.message));
+      });
+    });
+    offList.querySelectorAll('.quick-resolve-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        apiOfficerBulk([btn.dataset.id], 'resolve').then(()=>{
+          showToast('Marked resolved — awaiting citizen confirmation.');
+          loadSummary(); loadQueue();
+        }).catch(err=> showToast(err.message));
+      });
+    });
   }
 
   function renderQueue(payload){
@@ -387,6 +430,7 @@
     });
 
     renderPagination(payload);
+    wireDetailActions(offList);
   }
 
   function renderPagination(payload){

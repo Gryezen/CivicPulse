@@ -98,6 +98,7 @@
       <li><a href="complaint.html" class="active">File complaint</a></li>
       <li><a href="track.html">Complaints &amp; Policies</a></li>
       <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
@@ -326,19 +327,29 @@
     const body = bodyEl.value;
     const language = document.getElementById('c-lang').value;
     const submitBtn = form.querySelector('button[type="submit"]');
+    const attachedFiles = getFiles();
 
-    // TODO(backend): file uploads (proof_of_complaints) still need a real
-    // storage endpoint (e.g. Supabase Storage) — today we only send the count.
     const payload = {
       title,
       body,
       language,
-      files_count: getFiles().length,
+      files_count: attachedFiles.length,
     };
 
     if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Filing…'; }
 
-    apiCreateComplaint(payload).then(result=>{
+    // If the first attached file is an image, send it as the "before"
+    // photo for two-party photo-verified closure (see uploads.py) — other
+    // file types (video/audio) and any ADDITIONAL files beyond the first
+    // image still only get counted (files_count), not stored. Full
+    // multi-file evidence storage is future work, same TODO as before.
+    const firstImage = attachedFiles.find(f => f.type && f.type.startsWith('image/'));
+    const beforePhotoPromise = firstImage ? fileToDataUrl(firstImage).catch(()=> null) : Promise.resolve(null);
+
+    beforePhotoPromise.then(dataUrl=>{
+      if(dataUrl) payload.before_photo = dataUrl;
+      return apiCreateComplaint(payload);
+    }).then(result=>{
       const band = priorityBand(result.priority);
 
       successId.textContent = `"${result.title.length > 40 ? result.title.slice(0, 40) + '…' : result.title}"`;
