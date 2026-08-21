@@ -50,6 +50,21 @@ class TrackViewModel(private val complaintRepository: ComplaintRepository) : Vie
 
     private fun loadQueue() {
         viewModelScope.launch {
+            // Paint instantly from the last-synced disk cache (see
+            // ComplaintRepository) so there's something real on screen the
+            // moment this loads, instead of a blank spinner — matters a lot
+            // on slow/2G connections where the network call below can take
+            // 10-20+ seconds. Only show the spinner if there's truly nothing
+            // cached yet (first-ever launch).
+            val cached = complaintRepository.cachedQueue()
+            if (cached.isNotEmpty()) {
+                state = state.copy(
+                    loading = false,
+                    allDockets = cached,
+                    categories = cached.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
+                )
+            }
+
             complaintRepository.queue()
                 .onSuccess { dockets ->
                     state = state.copy(
@@ -58,7 +73,14 @@ class TrackViewModel(private val complaintRepository: ComplaintRepository) : Vie
                         categories = dockets.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
                     )
                 }
-                .onFailure { state = state.copy(loading = false, error = it.message ?: "Could not load the queue") }
+                .onFailure {
+                    // Cache already painted above if there was one — only
+                    // surface an error state when there was nothing to fall
+                    // back on at all.
+                    if (cached.isEmpty()) {
+                        state = state.copy(loading = false, error = it.message ?: "Could not load the queue")
+                    }
+                }
         }
     }
 

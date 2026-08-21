@@ -2,6 +2,7 @@ package com.gryezen.civicpulse.data.repository
 
 import com.gryezen.civicpulse.data.local.DEMO_DOCKETS
 import com.gryezen.civicpulse.data.local.FiledComplaintsStore
+import com.gryezen.civicpulse.data.local.ResponseCacheStore
 import com.gryezen.civicpulse.data.local.classifyComplaintLocally
 import com.gryezen.civicpulse.data.local.scoreDockets
 import com.gryezen.civicpulse.data.model.Complaint
@@ -10,10 +11,14 @@ import com.gryezen.civicpulse.data.model.CreateComplaintResponse
 import com.gryezen.civicpulse.data.remote.ApiClient
 import com.gryezen.civicpulse.data.remote.parseErrorMessage
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.builtins.ListSerializer
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private const val CACHE_KEY_MINE = "complaints_mine"
+private const val CACHE_KEY_QUEUE = "complaints_queue"
 
 data class NewComplaint(
     val title: String,
@@ -27,9 +32,12 @@ data class NewComplaint(
 
 /**
  * All three complaint endpoints are live now (see ApiService.kt) — every
- * method here tries the real call first and only falls back to the demo
- * data / local classifier (data/local/DemoData.kt) when the server can't be
- * reached, so the app still works offline.
+ * read method tries the real call first, updates the on-disk cache
+ * (ResponseCacheStore) on success, and falls back to that cache — then the
+ * bundled demo data as a last resort — on failure. [cachedMyComplaints] and
+ * [cachedQueue] expose instant, network-free reads so a ViewModel can paint
+ * real (if slightly stale) data immediately on screen open, which matters a
+ * lot on slow/2G connections where the live call can take 10-20+ seconds.
  *
  * Two things the server doesn't have, so they're handled client-side only:
  *  - Proof files aren't actually uploaded — POST /api/complaints is JSON,
@@ -43,8 +51,11 @@ data class NewComplaint(
  */
 class ComplaintRepository(
     private val apiClient: ApiClient,
-    private val filedComplaintsStore: FiledComplaintsStore
+    private val filedComplaintsStore: FiledComplaintsStore,
+    private val responseCacheStore: ResponseCacheStore
 ) {
+
+    private val complaintListSerializer = ListSerializer(Complaint.serializer())
 
     suspend fun fileComplaint(complaint: NewComplaint): Result<CreateComplaintResponse> {
         val result = runCatching {
@@ -93,16 +104,25 @@ class ComplaintRepository(
         }
     }
 
+    /** Instant, network-free read of the last synced "my complaints" list, merged with anything filed locally. */
+    suspend fun cachedMyComplaints(): List<Complaint> {
+        val cached = responseCacheStore.get(CACHE_KEY_MINE, complaintListSerializer)?.value.orEmpty()
+        return mergeById(filedComplaintsStore.complaints.first(), cached)
+    }
+
     suspend fun myComplaints(): Result<List<Complaint>> {
+        val filed = filedComplaintsStore.complaints.first()
         val remote = runCatching {
             val response = apiClient.service.myComplaints()
             if (!response.isSuccessful) error(response.parseErrorMessage("Could not load complaints"))
             response.body().orEmpty()
         }
 
-        val filed = filedComplaintsStore.complaints.first()
+        remote.onSuccess { responseCacheStore.put(CACHE_KEY_MINE, complaintListSerializer, it) }
+
         return remote.map { mergeById(filed, it) }.recoverCatching {
-            mergeById(filed, DEMO_DOCKETS.values.toList())
+            val cached = responseCacheStore.get(CACHE_KEY_MINE, complaintListSerializer)?.value
+            mergeById(filed, cached ?: DEMO_DOCKETS.values.toList())
         }
     }
 
@@ -119,6 +139,12 @@ class ComplaintRepository(
         }
     }
 
+    /** Instant, network-free read of the last synced full queue, merged with anything filed locally. */
+    suspend fun cachedQueue(): List<Complaint> {
+        val cached = responseCacheStore.get(CACHE_KEY_QUEUE, complaintListSerializer)?.value.orEmpty()
+        return mergeById(filedComplaintsStore.complaints.first(), cached)
+    }
+
     /**
      * Full queue for the Track screen's browse/filter view — GET /api/complaints,
      * unfiltered. Requires login, same as everything else in this app.
@@ -130,12 +156,16 @@ class ComplaintRepository(
             if (!response.isSuccessful) error(response.parseErrorMessage("Could not load the queue"))
             response.body().orEmpty()
         }
+
+        remote.onSuccess { responseCacheStore.put(CACHE_KEY_QUEUE, complaintListSerializer, it) }
+
         return remote.map { mergeById(filed, it) }.recoverCatching {
-            mergeById(filed, DEMO_DOCKETS.values.toList())
+            val cached = responseCacheStore.get(CACHE_KEY_QUEUE, complaintListSerializer)?.value
+            mergeById(filed, cached ?: DEMO_DOCKETS.values.toList())
         }
     }
 
-    /** Free-text ("NLP") search — server-side via ?q= (complaints.py's queue()). */
+    /** Free-text ("NLP") search — server-side via ?q= (complaints.py's queue()). Not cached; searches vary too much to be worth it. */
     suspend fun search(query: String): Result<List<Complaint>> = runCatching {
         val response = apiClient.service.queue(query = query)
         if (!response.isSuccessful) error(response.parseErrorMessage("Search failed"))
@@ -155,3 +185,4 @@ class ComplaintRepository(
     private fun isoDate(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     private fun displayDate(): String = SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date())
 }
+

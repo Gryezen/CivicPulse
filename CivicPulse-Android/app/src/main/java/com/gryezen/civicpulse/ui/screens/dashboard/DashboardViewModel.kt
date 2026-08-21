@@ -41,8 +41,27 @@ class DashboardViewModel(
     }
 
     fun refresh() {
-        state = state.copy(loading = true, error = null)
         viewModelScope.launch {
+            // Cache-first paint: show the last-synced data immediately (see
+            // ComplaintRepository/PolicyRepository), don't block on the
+            // network before rendering anything. Only keep the spinner up
+            // if there's genuinely nothing cached yet.
+            val cachedComplaints = complaintRepository.cachedMyComplaints()
+            val cachedPolicies = policyRepository.cachedRecommended().orEmpty()
+            val hasCache = cachedComplaints.isNotEmpty() || cachedPolicies.isNotEmpty()
+
+            if (hasCache) {
+                state = state.copy(
+                    loading = false,
+                    error = null,
+                    complaints = cachedComplaints,
+                    policies = cachedPolicies,
+                    stats = DashboardStats.from(cachedComplaints)
+                )
+            } else {
+                state = state.copy(loading = true, error = null)
+            }
+
             val complaintsResult = complaintRepository.myComplaints()
             val policiesResult = policyRepository.recommended()
 
@@ -50,10 +69,14 @@ class DashboardViewModel(
             val policies = policiesResult.getOrNull()
 
             if (complaints == null && policies == null) {
-                state = state.copy(
-                    loading = false,
-                    error = complaintsResult.exceptionOrNull()?.message ?: "Could not reach the server"
-                )
+                // Cache already painted above if there was one — only show
+                // the error state when there was nothing to fall back on.
+                if (!hasCache) {
+                    state = state.copy(
+                        loading = false,
+                        error = complaintsResult.exceptionOrNull()?.message ?: "Could not reach the server"
+                    )
+                }
                 return@launch
             }
 

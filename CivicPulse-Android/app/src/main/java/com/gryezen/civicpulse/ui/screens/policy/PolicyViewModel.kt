@@ -37,9 +37,22 @@ class PolicyViewModel(private val policyRepository: PolicyRepository) : ViewMode
 
     private fun load() {
         viewModelScope.launch {
+            // Paint from the last-synced cache instantly (shared with the
+            // Dashboard's recommendations — see PolicyRepository), then
+            // refresh over the network. Avoids a blank spinner on slow/2G
+            // connections when we likely already have this exact data.
+            val cached = policyRepository.cachedRecommended()
+            if (!cached.isNullOrEmpty()) {
+                listState = listState.copy(loading = false, policies = cached)
+            }
+
             policyRepository.recommended()
                 .onSuccess { listState = listState.copy(loading = false, policies = it) }
-                .onFailure { listState = listState.copy(loading = false, error = it.message ?: "Could not load policies") }
+                .onFailure {
+                    if (cached.isNullOrEmpty()) {
+                        listState = listState.copy(loading = false, error = it.message ?: "Could not load policies")
+                    }
+                }
         }
     }
 

@@ -3,6 +3,7 @@ package com.gryezen.civicpulse
 import android.app.Application
 import com.gryezen.civicpulse.data.local.FiledComplaintsStore
 import com.gryezen.civicpulse.data.local.PreferencesManager
+import com.gryezen.civicpulse.data.local.ResponseCacheStore
 import com.gryezen.civicpulse.data.remote.ApiClient
 import com.gryezen.civicpulse.data.repository.AuthRepository
 import com.gryezen.civicpulse.data.repository.ComplaintRepository
@@ -15,7 +16,7 @@ import kotlinx.coroutines.flow.onEach
 
 /**
  * No Hilt/Dagger — the dependency graph here is small (one API client, three
- * repositories, two local stores) so a hand-rolled container keeps the
+ * repositories, three local stores) so a hand-rolled container keeps the
  * build simple while the backend contract is still moving.
  */
 class CivicPulseApp : Application() {
@@ -23,6 +24,8 @@ class CivicPulseApp : Application() {
     lateinit var preferencesManager: PreferencesManager
         private set
     lateinit var filedComplaintsStore: FiledComplaintsStore
+        private set
+    lateinit var responseCacheStore: ResponseCacheStore
         private set
     lateinit var apiClient: ApiClient
         private set
@@ -40,10 +43,11 @@ class CivicPulseApp : Application() {
 
         preferencesManager = PreferencesManager(this)
         filedComplaintsStore = FiledComplaintsStore(this)
+        responseCacheStore = ResponseCacheStore(this)
         apiClient = ApiClient(this)
         authRepository = AuthRepository(apiClient, preferencesManager)
-        complaintRepository = ComplaintRepository(apiClient, filedComplaintsStore)
-        policyRepository = PolicyRepository(apiClient)
+        complaintRepository = ComplaintRepository(apiClient, filedComplaintsStore, responseCacheStore)
+        policyRepository = PolicyRepository(apiClient, responseCacheStore)
 
         // Keep the OkHttp interceptor's target host in sync with whatever the
         // user has configured (Account > Server settings), including the very
