@@ -21,4 +21,5 @@ sealed class Routes(val route: String) {
     data object ServerSettings : Routes("server_settings")
     data object OfficerDashboard : Routes("officer")
     data object AdminDashboard : Routes("admin")
+    data object SmsDemo : Routes("sms_demo")
 }

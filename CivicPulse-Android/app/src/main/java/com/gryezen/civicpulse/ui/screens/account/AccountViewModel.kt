@@ -22,7 +22,12 @@ data class AccountUiState(
     val languageSaved: Boolean = false,
     val passwordSaved: Boolean = false,
     val passwordError: String? = null,
-    val loggedOut: Boolean = false
+    val loggedOut: Boolean = false,
+    val changingAccountType: Boolean = false,
+    val accountTypeError: String? = null,
+    val resendingVerification: Boolean = false,
+    val resendError: String? = null,
+    val resendMessage: String? = null
 )
 
 class AccountViewModel(
@@ -101,6 +106,32 @@ class AccountViewModel(
         viewModelScope.launch {
             authRepository.logout()
             state = state.copy(loggedOut = true)
+        }
+    }
+
+    /** citizen<->official — see AuthRepository.changeAccountType() for the exact rules. */
+    fun changeAccountType(
+        targetRole: String,
+        currentPassword: String,
+        employeeId: String = "",
+        department: String = "",
+        verificationCode: String = "",
+        idDocumentDataUrl: String? = null
+    ) {
+        state = state.copy(changingAccountType = true, accountTypeError = null)
+        viewModelScope.launch {
+            authRepository.changeAccountType(targetRole, currentPassword, employeeId, department, verificationCode, idDocumentDataUrl)
+                .onSuccess { state = state.copy(changingAccountType = false, user = it) }
+                .onFailure { state = state.copy(changingAccountType = false, accountTypeError = it.message ?: "Could not change account type") }
+        }
+    }
+
+    fun resendVerification() {
+        state = state.copy(resendingVerification = true, resendError = null, resendMessage = null)
+        viewModelScope.launch {
+            authRepository.resendVerification()
+                .onSuccess { state = state.copy(resendingVerification = false, user = it, resendMessage = "Verification request resent.") }
+                .onFailure { state = state.copy(resendingVerification = false, resendError = it.message ?: "Could not resend") }
         }
     }
 

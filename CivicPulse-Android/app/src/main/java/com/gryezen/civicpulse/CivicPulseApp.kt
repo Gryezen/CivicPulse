@@ -8,6 +8,7 @@ import com.gryezen.civicpulse.data.remote.ApiClient
 import com.gryezen.civicpulse.data.repository.AdminRepository
 import com.gryezen.civicpulse.data.repository.AuthRepository
 import com.gryezen.civicpulse.data.repository.ComplaintRepository
+import com.gryezen.civicpulse.data.repository.IvrRepository
 import com.gryezen.civicpulse.data.repository.OfficerRepository
 import com.gryezen.civicpulse.data.repository.PolicyRepository
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,8 @@ class CivicPulseApp : Application() {
         private set
     lateinit var adminRepository: AdminRepository
         private set
+    lateinit var ivrRepository: IvrRepository
+        private set
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -56,6 +59,7 @@ class CivicPulseApp : Application() {
         policyRepository = PolicyRepository(apiClient, responseCacheStore)
         officerRepository = OfficerRepository(apiClient)
         adminRepository = AdminRepository(apiClient)
+        ivrRepository = IvrRepository(apiClient)
 
         // Keep the OkHttp interceptor's target host in sync with whatever the
         // user has configured (Account > Server settings), including the very

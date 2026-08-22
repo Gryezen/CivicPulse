@@ -30,6 +30,8 @@ import com.gryezen.civicpulse.ui.screens.policy.PolicyDetailScreen
 import com.gryezen.civicpulse.ui.screens.policy.PolicyListScreen
 import com.gryezen.civicpulse.ui.screens.policy.PolicyViewModel
 import com.gryezen.civicpulse.ui.screens.settings.ServerSettingsScreen
+import com.gryezen.civicpulse.ui.screens.smsdemo.SmsDemoScreen
+import com.gryezen.civicpulse.ui.screens.smsdemo.SmsDemoViewModel
 import com.gryezen.civicpulse.ui.screens.splash.SplashScreen
 import com.gryezen.civicpulse.ui.screens.track.TrackScreen
 import com.gryezen.civicpulse.ui.screens.track.TrackViewModel
@@ -118,7 +120,8 @@ fun CivicPulseNavHost(app: CivicPulseApp) {
                         },
                         onOpenServerSettings = { navController.navigate(Routes.ServerSettings.route) },
                         onOpenOfficerDashboard = { navController.navigate(Routes.OfficerDashboard.route) },
-                        onOpenAdminDashboard = { navController.navigate(Routes.AdminDashboard.route) }
+                        onOpenAdminDashboard = { navController.navigate(Routes.AdminDashboard.route) },
+                        onOpenSmsDemo = { navController.navigate(Routes.SmsDemo.route) }
                     )
                 }
 
@@ -130,6 +133,12 @@ fun CivicPulseNavHost(app: CivicPulseApp) {
                 composable(Routes.AdminDashboard.route) {
                     val vm: AdminViewModel = viewModel(factory = factory)
                     AdminScreen(viewModel = vm)
+                }
+
+                composable(Routes.SmsDemo.route) {
+                    val vm: SmsDemoViewModel = viewModel(factory = factory)
+                    val accountVm: AccountViewModel = viewModel(factory = factory)
+                    SmsDemoScreen(viewModel = vm, prefillPhone = accountVm.state.user?.phone.orEmpty())
                 }
 
                 composable(Routes.ServerSettings.route) {

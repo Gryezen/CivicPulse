@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -124,6 +125,7 @@ fun OfficerDashboardScreen(viewModel: OfficerViewModel) {
                             StatRow("Corruption-flagged", summary.corruptionFlag.toString())
                             StatRow("Threat-flagged", summary.threatFlag.toString())
                             StatRow("Audit tier", summary.auditTier.toString())
+                            StatRow("Wellbeing check-ins", summary.wellbeingRisk.toString())
                             StatRow("Auto-resolved", "${summary.autoResolved} (${(summary.autoResolvedShareOfHandled * 100).toInt()}% of handled)")
                             if (summary.systemicAlerts.isNotEmpty()) {
                                 Spacer(Modifier.height(10.dp))
@@ -153,7 +155,7 @@ fun OfficerDashboardScreen(viewModel: OfficerViewModel) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("Only flagged (corruption / threat / audit / needs-review)")
+                    Text("Only flagged (corruption / threat / audit / wellbeing / needs-review)")
                     Switch(checked = state.onlyFlagged, onCheckedChange = { viewModel.setOnlyFlagged(it) })
                 }
                 Spacer(Modifier.height(8.dp))
@@ -247,8 +249,10 @@ private fun OfficerQueueCard(
                         if (complaint.corruptionFlag) FlagChip("Corruption", Red)
                         if (complaint.threatFlag) FlagChip("Threat", Red)
                         if (complaint.auditTier) FlagChip("Audit tier", Red)
+                        if (complaint.wellbeingRisk) FlagChip("Wellbeing check-in", Red)
                         if (complaint.needsReview) FlagChip("Needs review", TextLow)
                         if (complaint.suspectedCoordinated) FlagChip("Suspected coordinated", TextLow)
+                        if (complaint.suspectedTargeting) FlagChip("Suspected targeting", TextLow)
                     }
                 }
                 TextButton(onClick = onToggleExpand) { Text(if (expanded) "Less" else "More") }
@@ -271,7 +275,15 @@ private fun OfficerQueueCard(
 
 @Composable
 private fun FlagChip(label: String, color: androidx.compose.ui.graphics.Color) {
-    Box(Modifier.background(color.copy(alpha = 0.12f), RoundedCornerShape(3.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-        Text(label, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+    Box(
+        Modifier
+            .wrapContentWidth()
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(3.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            label, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Clip
+        )
     }
 }

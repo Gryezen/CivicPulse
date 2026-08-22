@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gryezen.civicpulse.data.model.ComplaintStatus
@@ -49,7 +51,10 @@ import com.gryezen.civicpulse.ui.theme.Saffron
 import com.gryezen.civicpulse.ui.theme.SaffronDim
 import com.gryezen.civicpulse.ui.theme.TextLow
 
-/** Mirrors the `.stamp` chips used across dashboard.html / track.html. */
+/** Mirrors the `.stamp` chips used across dashboard.html / track.html.
+ *  wrapContentWidth() + maxLines=1 keep this from ever wrapping character-
+ *  by-character if a parent Row/Column squeezes it narrower than the
+ *  label — badges should clip/ellipsize, never break mid-word. */
 @Composable
 fun StatusStamp(status: ComplaintStatus, modifier: Modifier = Modifier) {
     val (label, color) = when (status) {
@@ -61,10 +66,14 @@ fun StatusStamp(status: ComplaintStatus, modifier: Modifier = Modifier) {
     }
     Box(
         modifier
+            .wrapContentWidth()
             .background(color.copy(alpha = 0.12f), RoundedCornerShape(3.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(label, color = color, fontFamily = MonoFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label, color = color, fontFamily = MonoFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Clip
+        )
     }
 }
 
@@ -90,6 +99,7 @@ fun PriorityBadge(score: Int, modifier: Modifier = Modifier) {
     val band = PriorityBand.fromScore(score)
     Box(
         modifier = modifier
+            .wrapContentWidth()
             .border(1.5.dp, band.color, RoundedCornerShape(3.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
@@ -98,7 +108,10 @@ fun PriorityBadge(score: Int, modifier: Modifier = Modifier) {
             color = band.color,
             fontFamily = MonoFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.sp
+            fontSize = 11.sp,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip
         )
     }
 }

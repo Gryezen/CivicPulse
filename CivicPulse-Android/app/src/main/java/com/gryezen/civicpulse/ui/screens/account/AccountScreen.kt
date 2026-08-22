@@ -1,5 +1,8 @@
 package com.gryezen.civicpulse.ui.screens.account
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,18 +35,29 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gryezen.civicpulse.ui.components.DropdownField
+import com.gryezen.civicpulse.ui.components.GhostButton
+import com.gryezen.civicpulse.ui.components.NavRow
 import com.gryezen.civicpulse.ui.components.PrimaryButton
+import com.gryezen.civicpulse.ui.theme.Green
 import com.gryezen.civicpulse.ui.theme.Navy
 import com.gryezen.civicpulse.ui.theme.Red
+import com.gryezen.civicpulse.ui.theme.Saffron
 import com.gryezen.civicpulse.ui.theme.TextLow
+import com.gryezen.civicpulse.util.encodeFileAsImageDataUrl
+import com.gryezen.civicpulse.util.resolveUrisToCacheFiles
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val EDUCATION_OPTIONS = listOf(
     "Below 10th", "10th pass", "12th pass", "Diploma", "Undergraduate", "Postgraduate & above"
@@ -59,9 +73,12 @@ fun AccountScreen(
     onLoggedOut: () -> Unit,
     onOpenServerSettings: () -> Unit,
     onOpenOfficerDashboard: () -> Unit = {},
-    onOpenAdminDashboard: () -> Unit = {}
+    onOpenAdminDashboard: () -> Unit = {},
+    onOpenSmsDemo: () -> Unit = {}
 ) {
     val state = viewModel.state
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(state.loggedOut) {
         if (state.loggedOut) onLoggedOut()
@@ -85,6 +102,25 @@ fun AccountScreen(
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+
+    // Account-type change (citizen<->official) — see AuthRepository.changeAccountType().
+    var switchTargetRole by remember(user) { mutableStateOf(if (user?.role == "official") "citizen" else "official") }
+    var switchPassword by remember { mutableStateOf("") }
+    var switchEmployeeId by remember { mutableStateOf("") }
+    var switchDepartment by remember { mutableStateOf("") }
+    var switchVerificationCode by remember { mutableStateOf("") }
+    var switchIdDocumentDataUrl by remember { mutableStateOf<String?>(null) }
+    var resolvingSwitchDocument by remember { mutableStateOf(false) }
+
+    val switchDocumentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        resolvingSwitchDocument = true
+        scope.launch {
+            val file = withContext(Dispatchers.IO) { resolveUrisToCacheFiles(context, listOf(uri)) }.firstOrNull()
+            switchIdDocumentDataUrl = file?.let { withContext(Dispatchers.IO) { encodeFileAsImageDataUrl(it) } }
+            resolvingSwitchDocument = false
+        }
+    }
 
     Scaffold { padding ->
         Column(
@@ -118,8 +154,8 @@ fun AccountScreen(
             if (user?.role == "official") {
                 Spacer(Modifier.height(6.dp))
                 val statusColor = when (user.verificationStatus) {
-                    "auto_verified", "approved" -> com.gryezen.civicpulse.ui.theme.Green
-                    "pending_review" -> com.gryezen.civicpulse.ui.theme.Saffron
+                    "auto_verified", "approved" -> Green
+                    "pending_review" -> Saffron
                     "rejected" -> Red
                     else -> TextLow
                 }
@@ -127,26 +163,44 @@ fun AccountScreen(
                     "Official account · ${user.department.ifBlank { "no department" }} · ${user.verificationStatus.replace('_', ' ')}",
                     color = statusColor, style = MaterialTheme.typography.labelMedium
                 )
+                if (user.verificationStatus == "pending_review") {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { viewModel.resendVerification() }, enabled = !state.resendingVerification) {
+                            Text(if (state.resendingVerification) "Resending…" else "Resend verification request")
+                        }
+                        if (state.resendMessage != null) Text(state.resendMessage, color = Green, style = MaterialTheme.typography.labelSmall)
+                    }
+                    if (state.resendError != null) Text(state.resendError, color = Red, style = MaterialTheme.typography.labelSmall)
+                }
             }
 
             if (user?.isOfficial == true || user?.isAdmin == true) {
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider()
                 if (user.isOfficial) {
-                    com.gryezen.civicpulse.ui.components.NavRow(
+                    NavRow(
                         label = "Officer dashboard",
                         sublabel = "Triage queue, bulk actions, resolve with photo",
                         onClick = onOpenOfficerDashboard
                     )
                 }
                 if (user.isAdmin) {
-                    com.gryezen.civicpulse.ui.components.NavRow(
+                    NavRow(
                         label = "Admin — official verification",
                         sublabel = "Approve or reject pending official accounts",
                         onClick = onOpenAdminDashboard
                     )
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
+            NavRow(
+                label = "SMS status-check demo",
+                sublabel = "Try the STATUS/HELP command language without a real SMS gateway",
+                onClick = onOpenSmsDemo
+            )
 
             Spacer(Modifier.height(20.dp))
             HorizontalDivider()
@@ -259,6 +313,67 @@ fun AccountScreen(
                 text = "Change password", loading = state.savingPassword,
                 onClick = { viewModel.changePassword(currentPassword, newPassword, confirmPassword) }
             )
+
+            Spacer(Modifier.height(32.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(20.dp))
+
+            Text("Account type", style = MaterialTheme.typography.titleLarge)
+            Text(
+                if (user?.role == "official") "Switch back to a citizen account, dropping officer access."
+                else "Register as a government official — needs a department verification code, or an ID document for an admin to review.",
+                color = TextLow, style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(14.dp))
+
+            if (user?.isAdmin != true) {
+                if (switchTargetRole == "official") {
+                    OutlinedTextField(switchEmployeeId, { switchEmployeeId = it }, label = { Text("Employee ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(switchDepartment, { switchDepartment = it }, label = { Text("Department") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        switchVerificationCode, { switchVerificationCode = it }, label = { Text("Department verification code (if you have one)") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("— or —", style = MaterialTheme.typography.labelSmall, color = TextLow)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { switchDocumentPicker.launch("image/*") }) {
+                        Text(
+                            when {
+                                resolvingSwitchDocument -> "Processing document…"
+                                switchIdDocumentDataUrl == null -> "Attach an ID document photo for manual review"
+                                else -> "ID document attached — tap to change"
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                OutlinedTextField(
+                    switchPassword, { switchPassword = it }, label = { Text("Current password (to confirm this change)") },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation()
+                )
+                if (state.accountTypeError != null) {
+                    Text(state.accountTypeError, color = Red, modifier = Modifier.padding(top = 8.dp))
+                }
+                Spacer(Modifier.height(14.dp))
+                GhostButton(
+                    text = if (switchTargetRole == "official") "Switch to an official account" else "Switch back to a citizen account",
+                    onClick = {
+                        viewModel.changeAccountType(
+                            targetRole = switchTargetRole,
+                            currentPassword = switchPassword,
+                            employeeId = switchEmployeeId,
+                            department = switchDepartment,
+                            verificationCode = switchVerificationCode,
+                            idDocumentDataUrl = switchIdDocumentDataUrl
+                        )
+                    }
+                )
+            } else {
+                Text("Admin accounts can't change their own role here.", color = TextLow, style = MaterialTheme.typography.bodySmall)
+            }
 
             Spacer(Modifier.height(32.dp))
             HorizontalDivider()

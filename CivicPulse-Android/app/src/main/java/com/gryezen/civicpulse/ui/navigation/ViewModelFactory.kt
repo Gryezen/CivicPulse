@@ -11,6 +11,7 @@ import com.gryezen.civicpulse.ui.screens.complaint.FileComplaintViewModel
 import com.gryezen.civicpulse.ui.screens.dashboard.DashboardViewModel
 import com.gryezen.civicpulse.ui.screens.officer.OfficerViewModel
 import com.gryezen.civicpulse.ui.screens.policy.PolicyViewModel
+import com.gryezen.civicpulse.ui.screens.smsdemo.SmsDemoViewModel
 import com.gryezen.civicpulse.ui.screens.track.TrackViewModel
 
 /** Hand-rolled factory — mirrors the manual DI container in [CivicPulseApp]. */
@@ -26,6 +27,7 @@ class CivicPulseViewModelFactory(private val app: CivicPulseApp) : ViewModelProv
             PolicyViewModel::class.java -> PolicyViewModel(app.policyRepository) as T
             OfficerViewModel::class.java -> OfficerViewModel(app.officerRepository) as T
             AdminViewModel::class.java -> AdminViewModel(app.adminRepository) as T
+            SmsDemoViewModel::class.java -> SmsDemoViewModel(app.ivrRepository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }

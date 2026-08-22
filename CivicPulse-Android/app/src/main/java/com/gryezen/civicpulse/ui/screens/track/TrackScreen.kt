@@ -259,8 +259,8 @@ private fun QueueItem(
                     }
                     Text(docket.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        if (docket.category.isNotBlank()) AssistChip(onClick = {}, label = { Text(docket.category, style = MaterialTheme.typography.labelSmall) })
-                        if (docket.languageNative.isNotBlank()) AssistChip(onClick = {}, label = { Text("${docket.languageNative} · ${docket.language}", style = MaterialTheme.typography.labelSmall) })
+                        if (docket.category.isNotBlank()) AssistChip(onClick = {}, label = { Text(docket.category, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) })
+                        if (docket.languageNative.isNotBlank()) AssistChip(onClick = {}, label = { Text("${docket.languageNative} · ${docket.language}", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) })
                     }
                     if (matchScore != null && matchScore > 0) {
                         Text("🔎 Match score $matchScore", style = MaterialTheme.typography.labelSmall, color = Navy, modifier = Modifier.padding(top = 6.dp))

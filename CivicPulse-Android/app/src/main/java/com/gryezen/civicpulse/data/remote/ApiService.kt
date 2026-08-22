@@ -1,11 +1,14 @@
 package com.gryezen.civicpulse.data.remote
 
+import com.gryezen.civicpulse.data.model.AccountTypeChangeRequest
 import com.gryezen.civicpulse.data.model.AuditTrailResponse
 import com.gryezen.civicpulse.data.model.BulkActionRequest
 import com.gryezen.civicpulse.data.model.BulkActionResponse
 import com.gryezen.civicpulse.data.model.ChangePasswordRequest
 import com.gryezen.civicpulse.data.model.Complaint
 import com.gryezen.civicpulse.data.model.CreateComplaintRequest
+import com.gryezen.civicpulse.data.model.IvrDemoRequest
+import com.gryezen.civicpulse.data.model.IvrDemoResponse
 import com.gryezen.civicpulse.data.model.LoginRequest
 import com.gryezen.civicpulse.data.model.OfficerQueueResponse
 import com.gryezen.civicpulse.data.model.OfficerSummary
@@ -33,6 +36,9 @@ import retrofit2.http.Query
  *   GET    /api/user/me             -> User          (401 if signed out) [auth.py]
  *   PATCH  /api/user/me             -> User          (any subset of profile fields, not password)
  *   POST   /api/user/me/password    -> {"ok": true}   {current_password, new_password}
+ *   POST   /api/user/me/account-type -> User  {target_role, current_password, employee_id?,
+ *                                       department?, verification_code?, id_document?}
+ *   POST   /api/user/me/resend-verification -> User (429 if within the 1/day cooldown)
  *
  *   POST   /api/complaints                       -> Complaint (201) {title, body, language,
  *                                                    files_count, before_photo?} [complaints.py]
@@ -61,6 +67,11 @@ import retrofit2.http.Query
  *   POST   /api/admin/officials/{id}/reject          -> User
  *   (all routes under /api/admin/ require login AND current_user.isAdmin — 403 otherwise)
  *
+ *   POST   /api/ivr/demo            -> {"reply": "..."}  {phone, text}   [ivr.py]
+ *   (logged-in browser stand-in for the real, gateway-agnostic
+ *   /webhook/ivr/inbound — same command logic, no telecom account needed;
+ *   see templates/sms-demo.html)
+ *
  * Errors are always `{"error": "message"}` — see ErrorParsing.kt.
  *
  * There is still no single "get complaint by docket ID" endpoint server-side
@@ -88,6 +99,12 @@ interface ApiService {
 
     @POST("api/user/me/password")
     suspend fun changePassword(@Body request: ChangePasswordRequest): Response<Unit>
+
+    @POST("api/user/me/account-type")
+    suspend fun changeAccountType(@Body request: AccountTypeChangeRequest): Response<User>
+
+    @POST("api/user/me/resend-verification")
+    suspend fun resendVerification(): Response<User>
 
     @POST("api/complaints")
     suspend fun createComplaint(@Body request: CreateComplaintRequest): Response<Complaint>
@@ -155,4 +172,9 @@ interface ApiService {
 
     @POST("api/admin/officials/{id}/reject")
     suspend fun rejectOfficial(@Path("id") id: String): Response<User>
+
+    // -------------------------------------------------------------------- ivr
+
+    @POST("api/ivr/demo")
+    suspend fun ivrDemo(@Body request: IvrDemoRequest): Response<IvrDemoResponse>
 }

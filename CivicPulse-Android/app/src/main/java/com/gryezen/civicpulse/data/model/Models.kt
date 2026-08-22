@@ -43,6 +43,7 @@ data class User(
     @SerialName("employeeId") val employeeId: String = "",
     val department: String = "",
     @SerialName("verificationStatus") val verificationStatus: String = "none",
+    @SerialName("verificationRequestedAt") val verificationRequestedAt: String? = null,
     @SerialName("hasIdDocument") val hasIdDocument: Boolean = false,
     @SerialName("idDocumentUrl") val idDocumentUrl: String? = null
 )
@@ -96,6 +97,22 @@ data class ChangePasswordRequest(
 )
 
 /**
+ * Body for POST /api/user/me/account-type (auth.py's change_account_type()).
+ * Switches citizen<->official; needs a password re-check since it's a
+ * privilege change, not a profile edit. Switching TO "official" reuses the
+ * same EITHER verificationCode OR idDocument rule as registration.
+ */
+@Serializable
+data class AccountTypeChangeRequest(
+    @SerialName("target_role") val targetRole: String,
+    @SerialName("current_password") val currentPassword: String,
+    @SerialName("employee_id") val employeeId: String? = null,
+    val department: String? = null,
+    @SerialName("verification_code") val verificationCode: String? = null,
+    @SerialName("id_document") val idDocument: String? = null
+)
+
+/**
  * received -> processing ("AI triage") -> assigned -> pendingConfirmation
  * ("an official says it's fixed, waiting on the citizen") -> resolved.
  * pendingConfirmation is the two-party closure state (ideation doc gap #6,
@@ -135,6 +152,11 @@ data class Complaint(
     @SerialName("corruptionFlag") val corruptionFlag: Boolean = false,
     @SerialName("threatFlag") val threatFlag: Boolean = false,
     @SerialName("auditTier") val auditTier: Boolean = false,
+    // Buried-distress signal (a coarse, high-precision-low-recall phrase
+    // check — not a clinical assessment). When set, the complaint is held
+    // for a human to check in on. Never surface this as a diagnosis in
+    // the UI — see classify.py's _detect_wellbeing_risk() docstring.
+    @SerialName("wellbeingRisk") val wellbeingRisk: Boolean = false,
     @SerialName("autoResolved") val autoResolved: Boolean = false,
     @SerialName("aiBrief") val aiBrief: String = "",
     @SerialName("assignedOfficer") val assignedOfficer: String = "",
@@ -146,6 +168,11 @@ data class Complaint(
     @SerialName("corroborationCount") val corroborationCount: Int = 1,
     @SerialName("isRepeatFiling") val isRepeatFiling: Boolean = false,
     @SerialName("suspectedCoordinated") val suspectedCoordinated: Boolean = false,
+    // Same-filer repeated-targeting pattern (e.g. a shopkeeper filing
+    // fake complaints against a rival every festival season) — distinct
+    // from suspectedCoordinated, which is about a burst of near-identical
+    // submissions from DIFFERENT filers around the same time.
+    @SerialName("suspectedTargeting") val suspectedTargeting: Boolean = false,
 
     // --- splitting.py: multi-issue complaints ----------------------------
     @SerialName("bundleId") val bundleId: String? = null,
@@ -239,8 +266,26 @@ data class Policy(
     val summary: String = "",
     val keywords: List<String> = emptyList(),
     val eligibility: String = "",
-    val roadmap: List<RoadmapStep> = emptyList()
+    val roadmap: List<RoadmapStep> = emptyList(),
+    // Populated when this policy came from policy_ingest.py's sync
+    // instead of the hand-edited policies_data.json seed — empty/null
+    // for hand-seeded entries.
+    @SerialName("sourceUrl") val sourceUrl: String = "",
+    @SerialName("lastSyncedAt") val lastSyncedAt: String? = null
 )
+
+// ------------------------------------------------------------------------
+// SMS/IVR demo (ivr.py) — POST /api/ivr/demo. Exercises the same
+// handle_inbound() command logic (STATUS, STATUS <id-fragment>, HELP)
+// a real telecom gateway webhook would call, without needing an actual
+// carrier account — matches templates/sms-demo.html's chat widget.
+// ------------------------------------------------------------------------
+
+@Serializable
+data class IvrDemoRequest(val phone: String, val text: String)
+
+@Serializable
+data class IvrDemoResponse(val reply: String)
 
 // ------------------------------------------------------------------------
 // Officer dashboard (officer.py) — GET /api/officer/summary, /queue, etc.
@@ -272,6 +317,7 @@ data class OfficerSummary(
     @SerialName("corruptionFlag") val corruptionFlag: Int = 0,
     @SerialName("threatFlag") val threatFlag: Int = 0,
     @SerialName("auditTier") val auditTier: Int = 0,
+    @SerialName("wellbeingRisk") val wellbeingRisk: Int = 0,
     @SerialName("autoResolved") val autoResolved: Int = 0,
     @SerialName("autoResolvedShareOfHandled") val autoResolvedShareOfHandled: Double = 0.0,
     @SerialName("byBroadCategory") val byBroadCategory: Map<String, Int> = emptyMap(),
