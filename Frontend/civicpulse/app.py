@@ -129,6 +129,7 @@ def _ensure_new_columns():
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_users_phone ON users(phone) WHERE phone IS NOT NULL",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) NOT NULL DEFAULT 'none'",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS id_document_path VARCHAR(300)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_requested_at TIMESTAMP",
     ]
     for stmt in statements:
         try:

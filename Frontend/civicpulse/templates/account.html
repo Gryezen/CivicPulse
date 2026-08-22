@@ -177,6 +177,13 @@
       </div>
     </form>
 
+    <!-- ACCOUNT TYPE -->
+    <div class="settings-section reveal" id="accountTypeSection">
+      <h3>Account type</h3>
+      <p class="section-sub" id="accountTypeSub">Loading…</p>
+      <div id="accountTypeBody"></div>
+    </div>
+
     <!-- ACCOUNT & SECURITY -->
     <form class="settings-section reveal" id="securityForm" novalidate>
       <h3>Account &amp; security</h3>
@@ -245,6 +252,180 @@
     document.getElementById('ac-phone').value = account.phone || '';
     document.getElementById('ac-email').value = account.email || '';
     setEmployToggle(account.employed !== false);
+    renderAccountType(account);
+  }
+
+  // ---- account type (citizen / official) switch + resend verification ----
+  const VERIF_LABELS = {
+    auto_verified: 'Verified (fast-track code)',
+    pending_review: 'Pending admin review',
+    approved: 'Verified (admin-approved)',
+    rejected: 'Rejected by admin',
+  };
+
+  // Shared markup for "submit official details" — used both when a citizen
+  // is applying for the first time and when a rejected official resubmits.
+  // Same fields as the registration form's officialFields block, plus a
+  // current-password re-check (this is a privilege change, not a plain
+  // profile edit — see auth.py's account-type endpoint docstring).
+  function officialFormHtml(){
+    return `
+      <form id="officialSwitchForm" novalidate style="display:none; margin-top:16px;">
+        <div class="notice-box" style="margin-bottom:16px; font-size:0.82rem; color:var(--text-mid); border:1px dashed var(--hairline-dark); padding:10px 12px; border-radius:2px;">
+          Needs EITHER a department verification code OR an ID document photo for manual admin review — same as at registration. Neither is government-database identity verification.
+        </div>
+        <div class="settings-grid">
+          <div class="field">
+            <label for="at-empid">Employee ID</label>
+            <input class="input" type="text" id="at-empid" placeholder="Department-issued employee ID">
+          </div>
+          <div class="field">
+            <label for="at-dept">Department</label>
+            <input class="input" type="text" id="at-dept" placeholder="e.g. Ward Grievance Cell, PWD (Roads)">
+          </div>
+        </div>
+        <div class="field">
+          <label for="at-vcode">Officer verification code (fast track)</label>
+          <input class="input" type="text" id="at-vcode" placeholder="Leave blank if you don't have one">
+        </div>
+        <div class="field">
+          <label for="at-iddoc">ID document photo (if you don't have a code)</label>
+          <input class="input" type="file" id="at-iddoc" accept="image/jpeg,image/png,image/webp">
+        </div>
+        <div class="field" style="max-width:360px;">
+          <label for="at-pass-o">Current password</label>
+          <input class="input" type="password" id="at-pass-o" required placeholder="Confirm it's you">
+          <p class="error-msg">Enter your current password to confirm.</p>
+        </div>
+        <div class="settings-actions">
+          <button type="submit" class="btn btn-primary">Submit for verification</button>
+          <span class="save-note" id="accountTypeSaveNote">Saved ✓</span>
+        </div>
+      </form>
+    `;
+  }
+
+  function wireOfficialForm(){
+    const toggleBtn = document.getElementById('showOfficialFormBtn');
+    const form = document.getElementById('officialSwitchForm');
+    toggleBtn.addEventListener('click', ()=>{
+      form.style.display = '';
+      toggleBtn.style.display = 'none';
+    });
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const passField = document.getElementById('at-pass-o');
+      const ok = passField.value.trim() !== '';
+      passField.classList.toggle('field-error', !ok);
+      passField.closest('.field').querySelector('.error-msg').classList.toggle('show', !ok);
+      if(!ok) return;
+
+      const payload = {
+        target_role: 'official',
+        current_password: passField.value,
+        employee_id: document.getElementById('at-empid').value.trim(),
+        department: document.getElementById('at-dept').value.trim(),
+        verification_code: document.getElementById('at-vcode').value.trim(),
+      };
+      const idDocFile = document.getElementById('at-iddoc').files[0];
+      const idDocPromise = idDocFile ? fileToDataUrl(idDocFile).catch(()=> null) : Promise.resolve(null);
+      idDocPromise.then(dataUrl=>{
+        if(dataUrl) payload.id_document = dataUrl;
+        return apiChangeAccountType(payload);
+      }).then(updated=>{
+        showToast(updated.verificationStatus === 'pending_review'
+          ? 'Submitted — queued for admin review.'
+          : 'Verified — you now have officer access.');
+        initNavUser();
+        paintForm(updated);
+      }).catch(err=> showToast(err.message));
+    });
+  }
+
+  function renderAccountType(account){
+    const sub = document.getElementById('accountTypeSub');
+    const body = document.getElementById('accountTypeBody');
+
+    if(account.isAdmin){
+      sub.textContent = "Admin accounts are managed directly and can't change their own role here.";
+      body.innerHTML = '';
+      return;
+    }
+
+    if(account.role === 'citizen'){
+      sub.textContent = 'Currently a citizen account. Government officials get access to the officer dashboard and complaint queue for their department.';
+      body.innerHTML = `<button type="button" class="btn btn-ghost btn-sm" id="showOfficialFormBtn">Register as a government official</button>` + officialFormHtml();
+      wireOfficialForm();
+      return;
+    }
+
+    // role === 'official'
+    if(account.verificationStatus === 'pending_review'){
+      sub.textContent = 'Government official — pending admin review.';
+      body.innerHTML = `
+        <p class="field-note">Your details are queued for an admin to review. You'll get officer access once approved.</p>
+        <button type="button" class="btn btn-ghost btn-sm" id="resendBtn">Resend verification request</button>
+        <span class="save-note" id="accountTypeSaveNote" style="margin-left:10px;">Saved ✓</span>
+      `;
+      document.getElementById('resendBtn').addEventListener('click', ()=>{
+        apiResendVerification().then(updated=>{
+          showToast('Verification request resent — an admin has been re-flagged.');
+          flashSaveNote('accountTypeSaveNote');
+          paintForm(updated);
+        }).catch(err=> showToast(err.message));
+      });
+      return;
+    }
+
+    if(account.verificationStatus === 'rejected'){
+      sub.textContent = 'Government official — your last verification request was rejected.';
+      body.innerHTML = `
+        <p class="field-note">An admin rejected your last request. You can submit new details below.</p>
+        <button type="button" class="btn btn-ghost btn-sm" id="showOfficialFormBtn">Resubmit for verification</button>
+      ` + officialFormHtml();
+      wireOfficialForm();
+      return;
+    }
+
+    // verified official (auto_verified / approved)
+    sub.textContent = `Government official — ${VERIF_LABELS[account.verificationStatus] || 'verified'}.`;
+    body.innerHTML = `
+      <p class="field-note">Department: ${account.department || '—'} · Employee ID: ${account.employeeId || '—'}</p>
+      <button type="button" class="btn btn-danger-ghost btn-sm" id="showCitizenFormBtn">Switch to citizen account</button>
+      <form id="citizenSwitchForm" novalidate style="display:none; margin-top:16px;">
+        <div class="field" style="max-width:360px;">
+          <label for="at-pass-c">Current password</label>
+          <input class="input" type="password" id="at-pass-c" required placeholder="Confirm it's you">
+          <p class="error-msg">Enter your current password to confirm.</p>
+        </div>
+        <p class="field-note">This drops your officer dashboard access and clears your employee ID / department.</p>
+        <div class="settings-actions">
+          <button type="submit" class="btn btn-primary">Confirm switch to citizen</button>
+          <span class="save-note" id="accountTypeSaveNote">Saved ✓</span>
+        </div>
+      </form>
+    `;
+    const toggleBtn = document.getElementById('showCitizenFormBtn');
+    const form = document.getElementById('citizenSwitchForm');
+    toggleBtn.addEventListener('click', ()=>{
+      form.style.display = '';
+      toggleBtn.style.display = 'none';
+    });
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const passField = document.getElementById('at-pass-c');
+      const ok = passField.value.trim() !== '';
+      passField.classList.toggle('field-error', !ok);
+      passField.closest('.field').querySelector('.error-msg').classList.toggle('show', !ok);
+      if(!ok) return;
+
+      apiChangeAccountType({ target_role: 'citizen', current_password: passField.value })
+        .then(updated=>{
+          showToast('Switched to a citizen account.');
+          initNavUser();
+          paintForm(updated);
+        }).catch(err=> showToast(err.message));
+    });
   }
 
   // employment toggle — mirrors the one on the registration form

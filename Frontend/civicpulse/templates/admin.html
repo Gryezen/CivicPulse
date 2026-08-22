@@ -107,6 +107,7 @@
               <span>${u.email}</span>
               <span>Employee ID: ${u.employeeId || '—'}</span>
               <span>Department: ${u.department || '—'}</span>
+              <span>Last requested: ${u.verificationRequestedAt ? new Date(u.verificationRequestedAt).toLocaleString() : '—'}</span>
             </div>
           </div>
           <div class="review-actions">

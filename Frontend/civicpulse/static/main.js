@@ -121,6 +121,12 @@ function apiUpdateAccount(patch){
 function apiChangePassword(currentPassword, newPassword){
   return apiPost('/api/user/me/password', { current_password: currentPassword, new_password: newPassword });
 }
+function apiChangeAccountType(payload){
+  return apiPost('/api/user/me/account-type', payload).then(cacheAccount);
+}
+function apiResendVerification(){
+  return apiPost('/api/user/me/resend-verification', {}).then(cacheAccount);
+}
 
 // ---------------------------------------------------------------------
 // GOV TOPBAR — text-size controls + screen reader note.
