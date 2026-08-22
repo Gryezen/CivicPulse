@@ -87,6 +87,12 @@ fun TrackScreen(viewModel: TrackViewModel, initialDocketId: String? = null, onBr
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(20.dp, 16.dp, 20.dp, 32.dp)
         ) {
+            if (state.actionError != null) {
+                item {
+                    Text(state.actionError, color = Red, modifier = Modifier.padding(bottom = 12.dp))
+                }
+            }
+
             item {
                 SectionHeader(
                     eyebrow = "NLP-ranked · Api /api/admin/view/complaint/<complaintID>",
@@ -207,7 +213,10 @@ fun TrackScreen(viewModel: TrackViewModel, initialDocketId: String? = null, onBr
                         docket = docket,
                         matchScore = viewModel.matchScoreFor(docket.id),
                         expanded = expandedDocketId == docket.id,
-                        onToggle = { expandedDocketId = if (expandedDocketId == docket.id) null else docket.id }
+                        onToggle = { expandedDocketId = if (expandedDocketId == docket.id) null else docket.id },
+                        actionInProgress = state.actionInProgressId == docket.id,
+                        onConfirm = { viewModel.confirm(docket.id) },
+                        onDispute = { viewModel.dispute(docket.id) }
                     )
                 }
             }
@@ -216,7 +225,15 @@ fun TrackScreen(viewModel: TrackViewModel, initialDocketId: String? = null, onBr
 }
 
 @Composable
-private fun QueueItem(docket: Complaint, matchScore: Int?, expanded: Boolean, onToggle: () -> Unit) {
+private fun QueueItem(
+    docket: Complaint,
+    matchScore: Int?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    actionInProgress: Boolean = false,
+    onConfirm: () -> Unit = {},
+    onDispute: () -> Unit = {}
+) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
         shape = RoundedCornerShape(2.dp),
@@ -276,15 +293,57 @@ private fun QueueItem(docket: Complaint, matchScore: Int?, expanded: Boolean, on
                         Text("💬 Next update: ${docket.note}", modifier = Modifier.padding(14.dp), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
+                if (docket.corroborationCount > 1) {
+                    Text(
+                        "👥 ${docket.corroborationCount} citizens reported a similar issue",
+                        style = MaterialTheme.typography.labelSmall, color = TextLow,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+                if (docket.photoSimilarity != null) {
+                    Text(
+                        "📷 Before/after photo similarity: ${(docket.photoSimilarity * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall, color = TextLow,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // Two-party closure (ideation doc gap #6) — an official
+                // marking this resolved doesn't close it; only the
+                // citizen's own confirm/dispute does. See TrackViewModel.
+                if (docket.pendingConfirmation) {
+                    Spacer(Modifier.height(12.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(2.dp)
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("An official marked this resolved.", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Is it actually fixed?", style = MaterialTheme.typography.bodyMedium, color = TextLow, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                PrimaryButton(text = "Yes, confirm", loading = actionInProgress, onClick = onConfirm)
+                                com.gryezen.civicpulse.ui.components.GhostButton(text = "No, dispute", onClick = onDispute)
+                            }
+                        }
+                    }
+                } else if (docket.statusEnum == ComplaintStatus.resolved) {
+                    Spacer(Modifier.height(10.dp))
+                    TextButton(onClick = onDispute, enabled = !actionInProgress) {
+                        Text(if (actionInProgress) "Reopening…" else "Not actually fixed? Dispute this →", color = Red)
+                    }
+                }
             }
         }
     }
 }
 
-/** received → AI triage → assigned → resolved, matching track.html's status-rail. */
+/** received → AI triage → assigned → awaiting confirmation → resolved, matching track.html's status-rail. */
 @Composable
 private fun StageRail(current: ComplaintStatus) {
-    val stages = listOf(ComplaintStatus.received, ComplaintStatus.processing, ComplaintStatus.assigned, ComplaintStatus.resolved)
+    val stages = listOf(
+        ComplaintStatus.received, ComplaintStatus.processing, ComplaintStatus.assigned,
+        ComplaintStatus.pending_confirmation, ComplaintStatus.resolved
+    )
     val currentIdx = stages.indexOf(current)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         stages.forEachIndexed { i, stage ->

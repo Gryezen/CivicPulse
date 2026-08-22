@@ -15,6 +15,12 @@ Two distinct things this disambiguates, both raised in the ideation doc:
      the opposite of spam. Each such match bumps `corroboration_count` on
      the whole cluster.
 
+A third, related but separate thing lives at the bottom of this file:
+check_filer_pattern() — the "fabricated complaint to damage a rival"
+gaming case, which isn't a same-issue-cluster problem at all (see that
+function's own docstring for why it needs a different, history-based
+check instead of the department/time-window matching above).
+
 Matching is TF-IDF cosine similarity over title+body, scoped to
 open (non-resolved) complaints in the same DEPARTMENT filed within
 CLUSTER_WINDOW_HOURS — department scoping matters more than the topic
@@ -43,6 +49,51 @@ CANDIDATE_LIMIT = 300  # cap how many open complaints we'll vectorize per call, 
 ASTROTURF_SIMILARITY_THRESHOLD = 0.85
 ASTROTURF_WINDOW_MINUTES = 90
 ASTROTURF_MIN_COUNT = 8
+
+# --- same-filer repeated-targeting detection -------------------------------
+# Doc's own case: "a shopkeeper repeatedly files 'unsanitary conditions'
+# complaints against a competing shop... timed right before festival season
+# each year." This is a DIFFERENT pattern from is_repeat_filing above — that
+# one is the same complaint resurfacing because it wasn't fixed; this one is
+# many DIFFERENT complaints, same filer, same category, that nobody else
+# has ever corroborated. Honesty note, same posture as astroturf detection:
+# this can't actually read "always targets the same rival shop" without
+# named-entity extraction, which isn't built here. What it CAN cheaply and
+# honestly check is the weaker but still useful proxy the doc itself names
+# as the differentiator — "low independent corroboration" — over enough of
+# a history to be a pattern rather than a coincidence. Flags for human
+# review; never auto-rejects a complaint on this signal alone.
+FILER_PATTERN_MIN_HISTORY = 3  # including the new one — need at least this many same-category complaints
+FILER_PATTERN_MAX_CORROBORATION = 1  # every one of them stayed at "just this filer," never independently confirmed
+
+
+def check_filer_pattern(user_id, category, exclude_complaint_id=None):
+    """Call with the NEW complaint's own category, from a filer's past
+    complaints — independent of the department-scoped/time-windowed
+    clustering above, since this pattern can span months. Returns
+    {"suspected_targeting": bool, "reason": str | None}."""
+    from models import Complaint
+
+    query = Complaint.query.filter(Complaint.user_id == user_id, Complaint.category == category)
+    if exclude_complaint_id:
+        query = query.filter(Complaint.id != exclude_complaint_id)
+    history = query.all()
+
+    total_in_category = len(history) + 1  # +1 for the new complaint being filed right now
+    if total_in_category < FILER_PATTERN_MIN_HISTORY:
+        return {"suspected_targeting": False, "reason": None}
+
+    never_corroborated = all((c.corroboration_count or 1) <= FILER_PATTERN_MAX_CORROBORATION for c in history)
+    if not never_corroborated:
+        return {"suspected_targeting": False, "reason": None}
+
+    return {
+        "suspected_targeting": True,
+        "reason": (
+            f"{total_in_category} complaints in the '{category}' category from this same filer, "
+            "none ever independently corroborated by another citizen"
+        ),
+    }
 
 
 def assign_cluster(new_complaint_id, user_id, title, body, department, filed_at):

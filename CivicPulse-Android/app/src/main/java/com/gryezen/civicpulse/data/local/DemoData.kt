@@ -119,10 +119,15 @@ val DEMO_DASHBOARD_COMPLAINTS: List<Complaint> = listOf(
 )
 
 const val STAGE_LABEL_TRIAGE = "AI triage"
+const val STAGE_LABEL_PENDING_CONFIRMATION = "Awaiting your confirmation"
 
-fun stageLabel(stage: String): String = if (stage == "processing") STAGE_LABEL_TRIAGE else stage.replaceFirstChar { it.uppercase() }
+fun stageLabel(stage: String): String = when (stage) {
+    "processing" -> STAGE_LABEL_TRIAGE
+    "pending_confirmation" -> STAGE_LABEL_PENDING_CONFIRMATION
+    else -> stage.replaceFirstChar { it.uppercase() }
+}
 
-val STAGE_ORDER = listOf("received", "processing", "assigned", "resolved")
+val STAGE_ORDER = listOf("received", "processing", "assigned", "pending_confirmation", "resolved")
 
 // ------------------------------------------------------------------ search
 

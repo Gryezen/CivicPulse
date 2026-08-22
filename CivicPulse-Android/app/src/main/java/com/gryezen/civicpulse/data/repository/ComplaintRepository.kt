@@ -27,7 +27,11 @@ data class NewComplaint(
     val authorityLevel: String,
     val language: String,
     val body: String,
-    val proofFiles: List<File> = emptyList()
+    val proofFiles: List<File> = emptyList(),
+    // Base64 "data:image/...;base64,..." data URL — see
+    // util/FileUtils.kt's encodeFileAsImageDataUrl(). Optional; matches
+    // complaints.py's create_complaint() accepting an optional before_photo.
+    val beforePhotoDataUrl: String? = null
 )
 
 /**
@@ -40,11 +44,15 @@ data class NewComplaint(
  * lot on slow/2G connections where the live call can take 10-20+ seconds.
  *
  * Two things the server doesn't have, so they're handled client-side only:
- *  - Proof files aren't actually uploaded — POST /api/complaints is JSON,
- *    not multipart (see classify.py/complaints.py). Only the *count* is
- *    sent as `files_count`; `dateFrom`/`dateTo`/`authorityLevel` aren't
- *    columns on Complaint either and are only used for the offline
- *    classifier fallback and are otherwise informational.
+ *  - Proof files (plural, "attach evidence") still aren't multipart-
+ *    uploaded — POST /api/complaints is JSON, not multipart (see
+ *    classify.py/complaints.py). Only the *count* is sent as
+ *    `files_count`; `dateFrom`/`dateTo`/`authorityLevel` aren't columns on
+ *    Complaint either and are only used for the offline classifier
+ *    fallback and are otherwise informational. The single "before" photo
+ *    used for two-party closure IS real now, though — it travels as a
+ *    base64 data URL in `before_photo` (see uploads.py) so an official's
+ *    later after-photo has something to diff against.
  *  - There's no "get complaint by docket ID" endpoint — [findComplaint]
  *    resolves against what's already been fetched (locally-filed
  *    complaints, then the queue) instead of a dedicated remote call.
@@ -64,7 +72,8 @@ class ComplaintRepository(
                     title = complaint.title,
                     body = complaint.body,
                     language = complaint.language,
-                    filesCount = complaint.proofFiles.size
+                    filesCount = complaint.proofFiles.size,
+                    beforePhoto = complaint.beforePhotoDataUrl
                 )
             )
             if (!response.isSuccessful) error(response.parseErrorMessage("Could not file complaint"))
@@ -74,7 +83,9 @@ class ComplaintRepository(
                 category = filed.category,
                 department = filed.department,
                 priority = filed.priority,
-                language = filed.language
+                language = filed.language,
+                wasSplit = filed.wasSplit,
+                splitInto = filed.splitInto
             )
         }.recoverCatching {
             // Offline fallback: the same client-side classifier complaint.html
@@ -164,6 +175,26 @@ class ComplaintRepository(
             mergeById(filed, cached ?: DEMO_DOCKETS.values.toList())
         }
     }
+
+    /**
+     * Two-party closure (ideation doc gap #6, see complaints.py's /confirm
+     * and /dispute) — an official marking a complaint resolved only sets
+     * `pendingConfirmation`; only the CITIZEN's own confirm/dispute here
+     * actually closes or reopens the ticket. Both update the local cache
+     * with the server's fresh copy so Track/Dashboard reflect it instantly
+     * without a full re-fetch.
+     */
+    suspend fun confirm(complaintId: String): Result<Complaint> = runCatching {
+        val response = apiClient.service.confirmComplaint(complaintId)
+        if (!response.isSuccessful) error(response.parseErrorMessage("Could not confirm this complaint"))
+        response.body() ?: error("Empty response from server")
+    }.onSuccess { filedComplaintsStore.add(it) }
+
+    suspend fun dispute(complaintId: String): Result<Complaint> = runCatching {
+        val response = apiClient.service.disputeComplaint(complaintId)
+        if (!response.isSuccessful) error(response.parseErrorMessage("Could not dispute this complaint"))
+        response.body() ?: error("Empty response from server")
+    }.onSuccess { filedComplaintsStore.add(it) }
 
     /** Free-text ("NLP") search — server-side via ?q= (complaints.py's queue()). Not cached; searches vary too much to be worth it. */
     suspend fun search(query: String): Result<List<Complaint>> = runCatching {

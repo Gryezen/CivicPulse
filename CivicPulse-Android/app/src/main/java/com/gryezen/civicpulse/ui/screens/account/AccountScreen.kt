@@ -57,7 +57,9 @@ private val LANGUAGE_OPTIONS = listOf(
 fun AccountScreen(
     viewModel: AccountViewModel,
     onLoggedOut: () -> Unit,
-    onOpenServerSettings: () -> Unit
+    onOpenServerSettings: () -> Unit,
+    onOpenOfficerDashboard: () -> Unit = {},
+    onOpenAdminDashboard: () -> Unit = {}
 ) {
     val state = viewModel.state
 
@@ -77,6 +79,7 @@ fun AccountScreen(
     var education by remember(user) { mutableStateOf(user?.education?.takeIf { it.isNotBlank() } ?: EDUCATION_OPTIONS.first()) }
     var employed by remember(user) { mutableStateOf(user?.employed ?: true) }
     var occupation by remember(user) { mutableStateOf(user?.occupation.orEmpty()) }
+    var phone by remember(user) { mutableStateOf(user?.phone.orEmpty()) }
     var language by remember(user) { mutableStateOf(user?.language?.takeIf { it.isNotBlank() } ?: LANGUAGE_OPTIONS.first()) }
     var email by remember(user) { mutableStateOf(user?.email.orEmpty()) }
     var currentPassword by remember { mutableStateOf("") }
@@ -112,6 +115,39 @@ fun AccountScreen(
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = { viewModel.logout() }) { Text("Log out", color = Red) }
 
+            if (user?.role == "official") {
+                Spacer(Modifier.height(6.dp))
+                val statusColor = when (user.verificationStatus) {
+                    "auto_verified", "approved" -> com.gryezen.civicpulse.ui.theme.Green
+                    "pending_review" -> com.gryezen.civicpulse.ui.theme.Saffron
+                    "rejected" -> Red
+                    else -> TextLow
+                }
+                Text(
+                    "Official account · ${user.department.ifBlank { "no department" }} · ${user.verificationStatus.replace('_', ' ')}",
+                    color = statusColor, style = MaterialTheme.typography.labelMedium
+                )
+            }
+
+            if (user?.isOfficial == true || user?.isAdmin == true) {
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider()
+                if (user.isOfficial) {
+                    com.gryezen.civicpulse.ui.components.NavRow(
+                        label = "Officer dashboard",
+                        sublabel = "Triage queue, bulk actions, resolve with photo",
+                        onClick = onOpenOfficerDashboard
+                    )
+                }
+                if (user.isAdmin) {
+                    com.gryezen.civicpulse.ui.components.NavRow(
+                        label = "Admin — official verification",
+                        sublabel = "Approve or reject pending official accounts",
+                        onClick = onOpenAdminDashboard
+                    )
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
             HorizontalDivider()
             Spacer(Modifier.height(20.dp))
@@ -143,11 +179,17 @@ fun AccountScreen(
                 OutlinedTextField(occupation, { occupation = it }, label = { Text("Current occupation") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             }
 
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                phone, { phone = it }, label = { Text("Phone (optional — links an SMS/IVR status-check channel)") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true
+            )
+
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PrimaryButton(
                     text = "Save profile", loading = state.savingProfile,
-                    onClick = { viewModel.saveProfile(name, region, education, employed, occupation) }
+                    onClick = { viewModel.saveProfile(name, region, education, employed, occupation, phone) }
                 )
                 if (state.profileSaved) {
                     Text("Saved ✓", color = com.gryezen.civicpulse.ui.theme.Green, modifier = Modifier.padding(start = 12.dp))

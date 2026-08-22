@@ -46,7 +46,7 @@ class AccountViewModel(
         }
     }
 
-    fun saveProfile(name: String, region: String, education: String, employed: Boolean, occupation: String) {
+    fun saveProfile(name: String, region: String, education: String, employed: Boolean, occupation: String, phone: String) {
         state = state.copy(savingProfile = true, profileSaved = false)
         viewModelScope.launch {
             authRepository.updateProfile(
@@ -55,7 +55,8 @@ class AccountViewModel(
                     region = region.trim(),
                     education = education,
                     employed = employed,
-                    occupation = occupation.trim()
+                    occupation = occupation.trim(),
+                    phone = phone.trim()
                 )
             ).onSuccess { state = state.copy(savingProfile = false, user = it, profileSaved = true) }
                 .onFailure { state = state.copy(savingProfile = false, error = it.message) }

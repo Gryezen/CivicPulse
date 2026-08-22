@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data handling — CivicPulse</title>
+<link rel="icon" href="/img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16x16.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .pv-wrap{max-width:74ch; margin:0 auto; padding:120px 24px 96px;}
+  .pv-back{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:0.8rem; color:var(--text-mid); text-decoration:none; margin-bottom:22px;
+  }
+  .pv-back:hover{color:var(--navy);}
+  .pv-head{
+    background:var(--surface); border:2px solid var(--ink); border-radius:2px;
+    padding:28px 30px; margin-bottom:34px; position:relative; overflow:hidden;
+  }
+  .pv-head::before{
+    content:""; position:absolute; top:0; left:0; bottom:0; width:6px;
+    background:linear-gradient(var(--saffron), var(--white) 50%, var(--green));
+  }
+  .pv-head h1{font-family:var(--display); font-weight:800; font-size:clamp(1.4rem,3vw,1.9rem); text-transform:none; margin-bottom:10px;}
+  .pv-head p{color:var(--text-mid); font-size:0.95rem;}
+  .pv-note{
+    font-family:var(--mono); font-size:0.72rem; letter-spacing:0.03em; text-transform:uppercase;
+    color:var(--marigold); margin-bottom:8px;
+  }
+  .pv-section{margin-bottom:32px;}
+  .pv-section h2{font-family:var(--display); font-weight:700; font-size:1.05rem; text-transform:none; margin-bottom:10px;}
+  .pv-section p, .pv-section li{color:var(--text-mid); font-size:0.92rem; line-height:1.65;}
+  .pv-section ul{padding-left:20px; margin-top:6px;}
+  .pv-section li{margin-bottom:6px;}
+  .pv-scope{
+    border:1px dashed var(--hairline-dark); border-radius:2px; padding:14px 16px;
+    font-size:0.85rem; color:var(--text-mid); margin-top:8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="pv-wrap">
+  <a href="/" class="pv-back">← Back to CivicPulse</a>
+
+  <div class="pv-head">
+    <div class="pv-note">Data handling &amp; DPDP Act 2023</div>
+    <h1>How CivicPulse handles your data</h1>
+    <p>A plain-language account of what this prototype collects, why, who can see it, and what's still an open
+      question rather than a solved one — deliberately written for both citizens and evaluators to read the same
+      page.</p>
+  </div>
+
+  <div class="pv-section">
+    <h2>What's collected</h2>
+    <p>An account: name, email, region, education, occupation, language, and (if you file as a government official)
+      employee ID, department, and either a shared verification code or an ID document photo. A complaint: its
+      title, body text, any before/after photos you attach, and the AI classification result (category, priority,
+      confidence, risk flags).</p>
+  </div>
+
+  <div class="pv-section">
+    <h2>DPDP Act 2023 — where this stands</h2>
+    <p>India's Digital Personal Data Protection Act 2023 governs how personal data like this should be collected,
+      used, and secured, including purpose limitation (only collect what a stated purpose needs), a right to
+      correction/erasure, and breach-notification duties. This is a hackathon prototype, not a certified
+      DPDP-compliant deployment — no formal Data Protection Officer, consent-manager integration, or breach-notice
+      pipeline exists here yet. What the codebase does already do in that direction:</p>
+    <ul>
+      <li>Passwords are hashed (werkzeug), never stored in plain text.</li>
+      <li>A citizen reporting corruption has their identity withheld from the accused department by default — the
+        complaint routes to an independent vigilance channel instead (see the corruption-flag routing logic).</li>
+      <li>An ID document uploaded for officer verification is visible only to admin accounts reviewing that specific
+        request, not to the general complaint queue.</li>
+      <li>An unverified allegation against a named individual is held for review and is never auto-attached to that
+        person's official record from a single complaint.</li>
+    </ul>
+    <div class="pv-scope">Not yet built: field-level encryption at rest, a stated data-retention/deletion period, and
+      a self-service "export or delete my data" flow. Named here rather than left unstated, since a hackathon
+      evaluator asking about DPDP compliance deserves an honest "here's what exists, here's what doesn't" rather than
+      silence.</div>
+  </div>
+
+  <div class="pv-section">
+    <h2>Who can see what</h2>
+    <p>You can see your own complaints and profile. Government officials (role-gated, see the account-type and
+      officer-verification flows) can see the complaint queue for triage. Admin accounts can review pending officer
+      verification requests, including any attached ID document. Nobody outside CivicPulse receives this data —
+      there is no analytics/advertising pixel and no third-party data sale in this prototype.</p>
+  </div>
+
+  <div class="pv-section">
+    <h2>External-system ingestion</h2>
+    <p>CivicPulse also has a mock CPGRAMS-shaped ingestion bridge (disabled unless explicitly configured) for
+      grievances filed through an external government system rather than this app directly. Grievances that arrive
+      that way go through the exact same classification and handling described above.</p>
+  </div>
+</div>
+
+</body>
+</html>

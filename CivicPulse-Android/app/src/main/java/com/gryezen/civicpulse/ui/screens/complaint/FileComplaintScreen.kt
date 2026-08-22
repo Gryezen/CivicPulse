@@ -70,6 +70,8 @@ fun FileComplaintScreen(viewModel: FileComplaintViewModel, onTrackDocket: (Strin
     var body by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<File>>(emptyList()) }
     var resolvingAttachments by remember { mutableStateOf(false) }
+    var beforePhoto by remember { mutableStateOf<File?>(null) }
+    var resolvingBeforePhoto by remember { mutableStateOf(false) }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
         val capped = uris.take(5)
@@ -79,6 +81,21 @@ fun FileComplaintScreen(viewModel: FileComplaintViewModel, onTrackDocket: (Strin
             val files = withContext(Dispatchers.IO) { resolveUrisToCacheFiles(context, capped) }
             attachments = files
             resolvingAttachments = false
+        }
+    }
+
+    // Separate from the general attachments above — this one is actually
+    // uploaded (base64, see uploads.py) and used later to verify an
+    // official's after-photo when this complaint is resolved (two-party
+    // closure, ideation doc gap #6). The general attachments above are
+    // still count-only (see ComplaintRepository's class doc).
+    val beforePhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        resolvingBeforePhoto = true
+        scope.launch {
+            val file = withContext(Dispatchers.IO) { resolveUrisToCacheFiles(context, listOf(uri)) }.firstOrNull()
+            beforePhoto = file
+            resolvingBeforePhoto = false
         }
     }
 
@@ -97,9 +114,11 @@ fun FileComplaintScreen(viewModel: FileComplaintViewModel, onTrackDocket: (Strin
                     department = state.result.department,
                     priority = state.result.priority,
                     language = state.result.language,
+                    wasSplit = state.result.wasSplit,
+                    splitInto = state.result.splitInto,
                     onTrack = { onTrackDocket(state.result.id) },
                     onFileAnother = {
-                        title = ""; dateFrom = ""; dateTo = ""; body = ""; attachments = emptyList()
+                        title = ""; dateFrom = ""; dateTo = ""; body = ""; attachments = emptyList(); beforePhoto = null
                         viewModel.reset(); onFileAnother()
                     }
                 )
@@ -172,17 +191,32 @@ fun FileComplaintScreen(viewModel: FileComplaintViewModel, onTrackDocket: (Strin
                 )
             }
             Text("JPEG, PNG, MP4, WAV · up to 5 files", style = MaterialTheme.typography.labelSmall, color = TextLow)
+            Spacer(Modifier.height(14.dp))
+
+            TextButton(onClick = { beforePhotoPicker.launch("image/*") }) {
+                Text(
+                    when {
+                        resolvingBeforePhoto -> "Processing photo…"
+                        beforePhoto == null -> "Add a \"before\" photo (optional)"
+                        else -> "Before-photo attached — tap to change"
+                    }
+                )
+            }
+            Text(
+                "Used later to verify an official's resolution photo — see it under Track once resolved.",
+                style = MaterialTheme.typography.labelSmall, color = TextLow
+            )
 
             Spacer(Modifier.height(24.dp))
             PrimaryButton(
                 text = "Submit complaint",
                 loading = state.submitting,
-                enabled = !resolvingAttachments,
+                enabled = !resolvingAttachments && !resolvingBeforePhoto,
                 onClick = {
                     viewModel.submit(
                         title = title, dateFrom = dateFrom, dateTo = dateTo,
                         authorityLevel = authority, language = language, body = body,
-                        proofFiles = attachments
+                        proofFiles = attachments, beforePhoto = beforePhoto
                     )
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp)
@@ -198,6 +232,8 @@ private fun ComplaintSuccessCard(
     department: String,
     priority: Int,
     language: String,
+    wasSplit: Boolean = false,
+    splitInto: List<com.gryezen.civicpulse.data.model.Complaint> = emptyList(),
     onTrack: () -> Unit,
     onFileAnother: () -> Unit
 ) {
@@ -226,6 +262,26 @@ private fun ComplaintSuccessCard(
                 InfoRow("Language detected", language)
                 Spacer(Modifier.height(6.dp))
                 PriorityBadge(priority)
+            }
+        }
+
+        if (wasSplit && splitInto.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Card(
+                shape = RoundedCornerShape(2.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "THIS DESCRIBED MULTIPLE ISSUES — SPLIT INTO ${splitInto.size + 1} DOCKETS",
+                        style = MaterialTheme.typography.labelSmall, color = TextLow
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    splitInto.forEach { sub ->
+                        Text("${sub.id} — ${sub.title}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp))
+                    }
+                }
             }
         }
 

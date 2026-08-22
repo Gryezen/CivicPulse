@@ -94,6 +94,24 @@ DEMO_PENDING_OFFICER_ACCOUNT = {
     "department": "Sanitation & Waste (Demo)",
 }
 
+# A system account, not a person — complaints ingested through the mock
+# CPGRAMS-shaped bridge (see cpgrams_integration.py) are filed under this
+# account rather than a citizen's own login, since the whole point of that
+# endpoint is that the submitter is a THIRD-PARTY SYSTEM, not a browser
+# session. Never logged into interactively; DEMO_ACCOUNT and this one are
+# the only two accounts CivicPulse itself creates without an explicit
+# admin/officer purpose, and this one exists purely as an FK anchor.
+CPGRAMS_BRIDGE_ACCOUNT = {
+    "name": "CPGRAMS Bridge (System)",
+    "email": "cpgrams-bridge@civicpulse.local",
+    "region": "National",
+    "education": "Undergraduate",
+    "employed": True,
+    "occupation": "External-system ingestion account",
+    "language": "English",
+    "role": "citizen",
+}
+
 # (title, body, category, department, authority, language, priority, stage, filed_at, files, note)
 DEMO_QUEUE_COMPLAINTS = [
     dict(title="Open manhole near school gate, Anna Nagar",

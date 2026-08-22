@@ -109,6 +109,32 @@ flagged in the original codebase audit. Be upfront about these if asked:
   that a plausible-looking document was provided, not verification
   against any government database, and there's no OCR or forgery
   detection. Say so plainly if asked; see `admin.py`'s own docstring.
+- **Wellbeing-risk detection** (`classify.py`'s `_detect_wellbeing_risk`,
+  the ideation doc's "pension complaint burying a suicidal-ideation
+  sentence" extreme case) is a coarse, high-precision-low-recall phrase
+  check, same posture as the existing `audit_tier` detector — not a
+  clinical or diagnostic model. It never talks back to the citizen about
+  it beyond a calm routing note, and it does exactly one thing: holds the
+  complaint for a trained human to check in on, on top of (not instead
+  of) the underlying civic issue still being handled.
+- **Same-filer repeated-targeting pattern** (`clustering.py`'s
+  `check_filer_pattern`, the ideation doc's "shopkeeper files fake
+  complaints against a rival every festival season" gaming case) —
+  honesty note: this can't actually detect "always targets the same
+  rival," since there's no named-entity extraction here. What it checks
+  instead is the weaker but still useful proxy the doc itself names as
+  the differentiator: enough same-category complaints from one filer that
+  no other citizen has ever corroborated. Flags for human review; never
+  auto-rejects on this signal alone.
+- **Mock CPGRAMS-shaped integration bridge**
+  (`cpgrams_integration.py`, doc section 3.9) is a REST surface shaped
+  like a plausible CPGRAMS-to-CivicPulse ingestion API — field names and
+  response envelope modelled on CPGRAMS' own public fields — **not a
+  working connection to the real government system.** Every ingested
+  grievance runs through the exact same classify → cluster → auto-resolve
+  pipeline a citizen's own submission does, filed under a system bridge
+  account. Disabled by default (fails closed if `CPGRAMS_INTEGRATION_KEY`
+  is unset).
 
 ## Architecture
 
@@ -295,6 +321,10 @@ document for the full reasoning behind each:
 - Coordination-pattern detection beyond the phrasing+timing+volume
   heuristic in `clustering.py` — no network-graph/account-level analysis
   (shared IPs, account creation bursts, etc.), text-only
+- Named-entity extraction (recognising WHO or WHAT BUSINESS a complaint
+  is about) — `check_filer_pattern`'s targeting-pattern detection uses a
+  no-corroboration-history proxy instead, since there's no entity
+  recognition to check "always names the same rival" directly
 - A trained CV model for judging whether a reported issue was actually
   fixed (a pothole-filled classifier, a garbage-cleared classifier, etc.)
   — the photo closure feature only checks before/after visual similarity,
@@ -303,13 +333,21 @@ document for the full reasoning behind each:
 - A scheduled/cron-triggered auto-confirm timeout for `pending_confirmation`
   complaints a citizen never responds to — today they wait indefinitely
   for the citizen's confirm/dispute
+- A real connection from `cpgrams_integration.py` to the actual CPGRAMS
+  system — see that file's own docstring; it's a mock built to a
+  plausible shape, not a live integration, and CPGRAMS' real auth scheme
+  hasn't been reverse-engineered here
 
 Everything else the ideation doc calls out by number is built — see the
 "What's real vs. simplified" section above for the honest caveats on each:
-gap #3 (corroboration + astroturf clustering), #4 (severity/urgency
-split), #5 (bundled-issue + unverified-allegation splitting), #6
-(two-party photo-verified closure + dispute escalation), #7 (systemic
-pattern alerts), plus the 5-broad-category taxonomy, the officer
-dashboard, the self-resolution agent, SMS/IVR status-check, and
-policy auto-refresh from the doc's own action-plan paragraph.
+gap #1's wellbeing-risk routing (the extreme "buried distress signal"
+case), gap #3 (corroboration + astroturf clustering + same-filer
+targeting patterns), #4 (severity/urgency split), #5 (bundled-issue +
+unverified-allegation splitting), #6 (two-party photo-verified closure +
+dispute escalation), #7 (systemic pattern alerts), plus the
+5-broad-category taxonomy, the officer dashboard, the self-resolution
+agent, SMS/IVR status-check, the mock CPGRAMS ingestion bridge (doc
+section 3.9), the DPDP data-handling page (doc section 3.8, see
+`/privacy`), and policy auto-refresh from the doc's own action-plan
+paragraph.
 

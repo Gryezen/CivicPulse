@@ -41,10 +41,23 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         education: String,
         employed: Boolean,
         occupation: String,
-        language: String
+        language: String,
+        role: String = "citizen",
+        employeeId: String = "",
+        department: String = "",
+        verificationCode: String = "",
+        idDocumentDataUrl: String? = null
     ) {
         if (name.isBlank() || email.isBlank() || password.length < 6 || region.isBlank() || education.isBlank()) {
             state = state.copy(error = "Please fill in all required fields (password needs 6+ characters).")
+            return
+        }
+        if (role == "official" && (employeeId.isBlank() || department.isBlank())) {
+            state = state.copy(error = "Employee ID and department are required for an official account.")
+            return
+        }
+        if (role == "official" && verificationCode.isBlank() && idDocumentDataUrl == null) {
+            state = state.copy(error = "Enter your department's verification code, or attach an ID document photo for manual review.")
             return
         }
         state = state.copy(loading = true, error = null)
@@ -58,7 +71,12 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
                     education = education,
                     employed = employed,
                     occupation = occupation.trim(),
-                    language = language
+                    language = language,
+                    role = role,
+                    employeeId = employeeId.trim().ifBlank { null },
+                    department = department.trim().ifBlank { null },
+                    verificationCode = verificationCode.trim().ifBlank { null },
+                    idDocument = idDocumentDataUrl
                 )
             ).onSuccess { state = state.copy(loading = false, success = true) }
                 .onFailure { state = state.copy(loading = false, error = it.message ?: "Registration failed") }

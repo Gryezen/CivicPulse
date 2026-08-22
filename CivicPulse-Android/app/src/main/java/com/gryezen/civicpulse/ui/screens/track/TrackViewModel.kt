@@ -27,7 +27,9 @@ data class TrackUiState(
     val statusFilter: ComplaintStatus? = null, // null = all statuses
     val docketFilterId: String? = null,
     val nlpQuery: String? = null,
-    val notFound: Boolean = false
+    val notFound: Boolean = false,
+    val actionInProgressId: String? = null,
+    val actionError: String? = null
 )
 
 /**
@@ -145,5 +147,38 @@ class TrackViewModel(private val complaintRepository: ComplaintRepository) : Vie
     fun matchScoreFor(docketId: String): Int? {
         val q = state.nlpQuery ?: return null
         return scoreDockets(q, state.allDockets.associateBy { it.id })[docketId]
+    }
+
+    /**
+     * Citizen confirms an official's "resolved" assertion — closes the
+     * ticket for real. See complaints.py's /confirm and ComplaintRepository's
+     * class doc for why this, not the officer's own action, is what actually
+     * closes it.
+     */
+    fun confirm(complaintId: String) {
+        state = state.copy(actionInProgressId = complaintId, actionError = null)
+        viewModelScope.launch {
+            complaintRepository.confirm(complaintId)
+                .onSuccess { updated -> replaceDocket(updated) }
+                .onFailure { state = state.copy(actionError = it.message ?: "Could not confirm this complaint") }
+            state = state.copy(actionInProgressId = null)
+        }
+    }
+
+    /** Citizen disputes a resolved/pending-confirmation complaint — reopens it. */
+    fun dispute(complaintId: String) {
+        state = state.copy(actionInProgressId = complaintId, actionError = null)
+        viewModelScope.launch {
+            complaintRepository.dispute(complaintId)
+                .onSuccess { updated -> replaceDocket(updated) }
+                .onFailure { state = state.copy(actionError = it.message ?: "Could not dispute this complaint") }
+            state = state.copy(actionInProgressId = null)
+        }
+    }
+
+    fun consumeActionError() { state = state.copy(actionError = null) }
+
+    private fun replaceDocket(updated: Complaint) {
+        state = state.copy(allDockets = state.allDockets.map { if (it.id == updated.id) updated else it })
     }
 }

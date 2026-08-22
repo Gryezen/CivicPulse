@@ -56,6 +56,7 @@ fun StatusStamp(status: ComplaintStatus, modifier: Modifier = Modifier) {
         ComplaintStatus.received -> "Received" to Saffron
         ComplaintStatus.processing -> "AI triage" to Navy
         ComplaintStatus.assigned -> "Assigned" to SaffronDim
+        ComplaintStatus.pending_confirmation -> "Awaiting confirmation" to Saffron
         ComplaintStatus.resolved -> "Resolved" to Green
     }
     Box(

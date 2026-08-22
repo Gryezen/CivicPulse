@@ -28,7 +28,7 @@ from extensions import db
 from models import Complaint, ClassificationLog, AutoResolutionLog
 from classify import classify
 from auto_resolve import attempt_auto_resolve
-from clustering import assign_cluster
+from clustering import assign_cluster, check_filer_pattern
 from splitting import split_complaint
 from search import extract_terms, score_complaint
 from uploads import save_upload, UploadError
@@ -42,12 +42,18 @@ def _err(message, status=400):
     return jsonify({"error": message}), status
 
 
-def _file_one(title, body, language, files_count, unverified_allegation=False):
+def _file_one(title, body, language, files_count, unverified_allegation=False, user_id=None):
     """Classifies, clusters, self-resolution-checks, and persists ONE
     complaint row (plus its ClassificationLog/AutoResolutionLog rows).
     Shared by both the single-issue and the split-into-N-issues paths in
     create_complaint() below, so a bundled sub-issue gets exactly the same
-    treatment a standalone complaint would."""
+    treatment a standalone complaint would.
+
+    `user_id` defaults to the logged-in citizen (current_user.id) — pass it
+    explicitly for a non-session caller, e.g. cpgrams_integration.py's
+    ingest endpoint, which files complaints under a system bridge account
+    rather than a browser session."""
+    uid = user_id or current_user.id
     result = classify(title, body)
 
     note = "Filed — queued for AI triage. This usually takes under a minute."
@@ -58,6 +64,16 @@ def _file_one(title, body, language, files_count, unverified_allegation=False):
             "independent review and will NOT be automatically attached to that person's official "
             "record — a factual, verifiable complaint gets acted on much faster."
         )
+    elif result.get("wellbeing_risk"):
+        # Deliberately calm, non-alarmist wording — this is a routing note
+        # on a civic complaint, not a crisis-service response. See
+        # classify.py's _detect_wellbeing_risk() for what this flag is and
+        # isn't.
+        note = (
+            "Your complaint will be looked at, and a team member will also reach out directly "
+            "given what you've shared here. If you need to talk to someone sooner, please contact "
+            "a local helpline or emergency services."
+        )
     elif result.get("needs_review"):
         note = "The classifier wasn't confident enough to auto-route this — a human officer will assign it shortly."
     elif result.get("corruption_flag"):
@@ -66,7 +82,7 @@ def _file_one(title, body, language, files_count, unverified_allegation=False):
         note = "Flagged for urgent safety review — routed outside the standard SLA queue."
 
     complaint = Complaint(
-        user_id=current_user.id,
+        user_id=uid,
         title=title,
         body=body,
         language=language,
@@ -80,6 +96,7 @@ def _file_one(title, body, language, files_count, unverified_allegation=False):
         corruption_flag=bool(result.get("corruption_flag")) and not unverified_allegation,
         threat_flag=bool(result.get("threat_flag")),
         audit_tier=bool(result.get("audit_tier")),
+        wellbeing_risk=bool(result.get("wellbeing_risk")),
         ai_brief=result.get("ai_brief"),
         modeled_severity=result.get("modeled_severity"),
         stated_urgency=result.get("stated_urgency"),
@@ -103,7 +120,7 @@ def _file_one(title, body, language, files_count, unverified_allegation=False):
     }
     if not unverified_allegation:
         cluster_result = assign_cluster(
-            new_complaint_id=complaint.id, user_id=current_user.id, title=title, body=body,
+            new_complaint_id=complaint.id, user_id=uid, title=title, body=body,
             department=complaint.department, filed_at=complaint.filed_at,
         )
     complaint.cluster_id = cluster_result["cluster_id"]
@@ -131,6 +148,20 @@ def _file_one(title, body, language, files_count, unverified_allegation=False):
         complaint.note = (
             f"Matches {cluster_result['corroboration_count'] - 1} other open complaint(s) about "
             "the same issue — treated as corroborated and escalated. " + complaint.note
+        )
+
+    # Same-filer repeated-targeting pattern (ideation doc's "shopkeeper
+    # files fake complaints against a rival every festival season" gaming
+    # case) — independent of the cluster checks above, since this is about
+    # this filer's OWN history in this category, not this one complaint's
+    # similarity to others filed around the same time.
+    filer_pattern = check_filer_pattern(user_id=uid, category=result["category"], exclude_complaint_id=complaint.id)
+    complaint.suspected_targeting = filer_pattern["suspected_targeting"]
+    if filer_pattern["suspected_targeting"]:
+        complaint.needs_review = True
+        complaint.note = (
+            "This filer has a repeated pattern of uncorroborated complaints in this category — held for "
+            "human review to rule out targeted/malicious filing before any action is taken. " + complaint.note
         )
 
     if cluster_result["bump_cluster_ids"] and not cluster_result["suspected_coordinated"]:
@@ -163,6 +194,10 @@ def _file_one(title, body, language, files_count, unverified_allegation=False):
     skip_reasons = []
     if unverified_allegation:
         skip_reasons.append("unverified allegation")
+    if complaint.wellbeing_risk:
+        skip_reasons.append("wellbeing check-in flagged")
+    if complaint.suspected_targeting:
+        skip_reasons.append("suspected repeated-targeting pattern")
     if complaint.suspected_coordinated:
         skip_reasons.append("suspected coordinated submission")
     if complaint.corroboration_count > 1:

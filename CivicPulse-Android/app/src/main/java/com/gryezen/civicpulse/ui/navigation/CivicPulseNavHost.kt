@@ -16,12 +16,16 @@ import androidx.compose.runtime.getValue
 import com.gryezen.civicpulse.CivicPulseApp
 import com.gryezen.civicpulse.ui.screens.account.AccountScreen
 import com.gryezen.civicpulse.ui.screens.account.AccountViewModel
+import com.gryezen.civicpulse.ui.screens.admin.AdminScreen
+import com.gryezen.civicpulse.ui.screens.admin.AdminViewModel
 import com.gryezen.civicpulse.ui.screens.auth.AuthScreen
 import com.gryezen.civicpulse.ui.screens.auth.AuthViewModel
 import com.gryezen.civicpulse.ui.screens.complaint.FileComplaintScreen
 import com.gryezen.civicpulse.ui.screens.complaint.FileComplaintViewModel
 import com.gryezen.civicpulse.ui.screens.dashboard.DashboardScreen
 import com.gryezen.civicpulse.ui.screens.dashboard.DashboardViewModel
+import com.gryezen.civicpulse.ui.screens.officer.OfficerDashboardScreen
+import com.gryezen.civicpulse.ui.screens.officer.OfficerViewModel
 import com.gryezen.civicpulse.ui.screens.policy.PolicyDetailScreen
 import com.gryezen.civicpulse.ui.screens.policy.PolicyListScreen
 import com.gryezen.civicpulse.ui.screens.policy.PolicyViewModel
@@ -112,8 +116,20 @@ fun CivicPulseNavHost(app: CivicPulseApp) {
                                 popUpTo(0) { inclusive = true }
                             }
                         },
-                        onOpenServerSettings = { navController.navigate(Routes.ServerSettings.route) }
+                        onOpenServerSettings = { navController.navigate(Routes.ServerSettings.route) },
+                        onOpenOfficerDashboard = { navController.navigate(Routes.OfficerDashboard.route) },
+                        onOpenAdminDashboard = { navController.navigate(Routes.AdminDashboard.route) }
                     )
+                }
+
+                composable(Routes.OfficerDashboard.route) {
+                    val vm: OfficerViewModel = viewModel(factory = factory)
+                    OfficerDashboardScreen(viewModel = vm)
+                }
+
+                composable(Routes.AdminDashboard.route) {
+                    val vm: AdminViewModel = viewModel(factory = factory)
+                    AdminScreen(viewModel = vm)
                 }
 
                 composable(Routes.ServerSettings.route) {

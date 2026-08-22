@@ -19,4 +19,6 @@ sealed class Routes(val route: String) {
         const val ARG_SLUG = "policySlug"
     }
     data object ServerSettings : Routes("server_settings")
+    data object OfficerDashboard : Routes("officer")
+    data object AdminDashboard : Routes("admin")
 }

@@ -156,6 +156,16 @@ class Complaint(db.Model):
     # _detect_audit_tier() and the ideation doc's "accident response delay,
     # fatality" example.
     audit_tier = db.Column(db.Boolean, nullable=False, default=False)
+    # Buried-distress signal (ideation doc's "pension complaint burying a
+    # suicidal-ideation sentence" example) — deliberately independent of
+    # topic classification. See classify.py's _detect_wellbeing_risk() for
+    # what this is and isn't: a coarse, high-precision-low-recall phrase
+    # check, not a clinical assessment. When set, the complaint is held for
+    # a trained human to check in on (never auto-resolved, never silently
+    # routed on topic alone) — that's the entire scope of what this flag
+    # does; it does not diagnose, and the citizen-facing app does not act
+    # as a crisis service.
+    wellbeing_risk = db.Column(db.Boolean, nullable=False, default=False)
 
     # Self-resolution agent (see auto_resolve.py) — set when the agent
     # auto-dispatched a routine action instead of leaving this for an
@@ -181,6 +191,11 @@ class Complaint(db.Model):
     # dismissed, since a false positive here just means a human looks at
     # something that turns out to be genuine — the safe failure direction.
     suspected_coordinated = db.Column(db.Boolean, nullable=False, default=False)
+    # Same-filer repeated-targeting pattern (ideation doc's "shopkeeper
+    # files fake complaints against a rival every festival season" gaming
+    # case) — see clustering.py's check_filer_pattern() for exactly what
+    # this does and doesn't detect.
+    suspected_targeting = db.Column(db.Boolean, nullable=False, default=False)
 
     # Severity (topic/signal-driven) vs stated urgency (how urgently *this*
     # complainant wrote it) — see classify.py's _score_urgency(). priority
@@ -246,6 +261,7 @@ class Complaint(db.Model):
             "corruptionFlag": bool(self.corruption_flag),
             "threatFlag": bool(self.threat_flag),
             "auditTier": bool(self.audit_tier),
+            "wellbeingRisk": bool(self.wellbeing_risk),
             "autoResolved": bool(self.auto_resolved),
             "aiBrief": self.ai_brief or "",
             "assignedOfficer": self.assigned_officer or "",
@@ -253,6 +269,7 @@ class Complaint(db.Model):
             "corroborationCount": self.corroboration_count,
             "isRepeatFiling": bool(self.is_repeat_filing),
             "suspectedCoordinated": bool(self.suspected_coordinated),
+            "suspectedTargeting": bool(self.suspected_targeting),
             "modeledSeverity": self.modeled_severity,
             "statedUrgency": self.stated_urgency,
             "bundleId": self.bundle_id,

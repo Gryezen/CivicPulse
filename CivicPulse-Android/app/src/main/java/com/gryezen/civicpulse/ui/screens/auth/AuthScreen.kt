@@ -1,5 +1,8 @@
 package com.gryezen.civicpulse.ui.screens.auth
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -24,9 +28,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -35,6 +41,11 @@ import com.gryezen.civicpulse.ui.components.PrimaryButton
 import com.gryezen.civicpulse.ui.theme.Navy
 import com.gryezen.civicpulse.ui.theme.Red
 import com.gryezen.civicpulse.ui.theme.TextLow
+import com.gryezen.civicpulse.util.encodeFileAsImageDataUrl
+import com.gryezen.civicpulse.util.resolveUrisToCacheFiles
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val EDUCATION_OPTIONS = listOf(
     "Below 10th", "10th pass", "12th pass", "Diploma", "Undergraduate", "Postgraduate & above"
@@ -135,8 +146,15 @@ private fun LoginForm(loading: Boolean, onSubmit: (String, String) -> Unit) {
 @Composable
 private fun RegisterForm(
     loading: Boolean,
-    onSubmit: (name: String, email: String, password: String, region: String, education: String, employed: Boolean, occupation: String, language: String) -> Unit
+    onSubmit: (
+        name: String, email: String, password: String, region: String, education: String,
+        employed: Boolean, occupation: String, language: String,
+        role: String, employeeId: String, department: String, verificationCode: String, idDocumentDataUrl: String?
+    ) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -145,6 +163,27 @@ private fun RegisterForm(
     var employed by remember { mutableStateOf(true) }
     var occupation by remember { mutableStateOf("") }
     var language by remember { mutableStateOf(LANGUAGE_OPTIONS.first()) }
+
+    // "citizen" (default, plain signup) or "official" — mirrors auth.py's
+    // register() two-path official verification (fast-track code, or a
+    // document queued for an admin to review). Admin accounts have no
+    // self-registration path at all — see admin.py's own docstring.
+    var accountType by remember { mutableStateOf("citizen") }
+    var employeeId by remember { mutableStateOf("") }
+    var department by remember { mutableStateOf("") }
+    var verificationCode by remember { mutableStateOf("") }
+    var idDocumentDataUrl by remember { mutableStateOf<String?>(null) }
+    var resolvingDocument by remember { mutableStateOf(false) }
+
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        resolvingDocument = true
+        scope.launch {
+            val file = withContext(Dispatchers.IO) { resolveUrisToCacheFiles(context, listOf(uri)) }.firstOrNull()
+            idDocumentDataUrl = file?.let { withContext(Dispatchers.IO) { encodeFileAsImageDataUrl(it) } }
+            resolvingDocument = false
+        }
+    }
 
     Column {
         OutlinedTextField(name, { name = it }, label = { Text("Full name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -193,10 +232,64 @@ private fun RegisterForm(
         )
 
         Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(16.dp))
+
+        Text("Account type", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = accountType == "citizen",
+                onClick = { accountType = "citizen" },
+                shape = SegmentedButtonDefaults.itemShape(0, 2)
+            ) { Text("Citizen") }
+            SegmentedButton(
+                selected = accountType == "official",
+                onClick = { accountType = "official" },
+                shape = SegmentedButtonDefaults.itemShape(1, 2)
+            ) { Text("Government official") }
+        }
+
+        if (accountType == "official") {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Verified either instantly with a department code, or manually by an admin from an uploaded ID document. Neither is real government identity verification — see the website's registration page for the same disclosure.",
+                style = MaterialTheme.typography.labelSmall, color = TextLow
+            )
+            Spacer(Modifier.height(14.dp))
+            OutlinedTextField(employeeId, { employeeId = it }, label = { Text("Employee ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Spacer(Modifier.height(14.dp))
+            OutlinedTextField(department, { department = it }, label = { Text("Department") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Spacer(Modifier.height(14.dp))
+            OutlinedTextField(
+                verificationCode, { verificationCode = it }, label = { Text("Department verification code (if you have one)") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true
+            )
+            Spacer(Modifier.height(10.dp))
+            Text("— or —", style = MaterialTheme.typography.labelSmall, color = TextLow)
+            Spacer(Modifier.height(10.dp))
+            TextButton(onClick = { documentPicker.launch("image/*") }) {
+                Text(
+                    when {
+                        resolvingDocument -> "Processing document…"
+                        idDocumentDataUrl == null -> "Attach an ID document photo for manual review"
+                        else -> "ID document attached — tap to change"
+                    }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
         PrimaryButton(
             text = "Create account",
             loading = loading,
-            onClick = { onSubmit(name, email, password, region, education, employed, occupation, language) },
+            enabled = !resolvingDocument,
+            onClick = {
+                onSubmit(
+                    name, email, password, region, education, employed, occupation, language,
+                    accountType, employeeId, department, verificationCode, idDocumentDataUrl
+                )
+            },
             modifier = Modifier.fillMaxWidth().height(50.dp)
         )
     }

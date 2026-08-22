@@ -8,12 +8,14 @@ run `python train_classifier.py` yet, or the joblib/sklearn import fails
 for any reason — classify() falls back to the original keyword-rule
 heuristic below, so the app never crashes for lack of a model file.
 
-Return shape is unchanged from v1 plus four new keys, so nothing calling
+Return shape is unchanged from v1 plus five new keys, so nothing calling
 classify() elsewhere had to change:
     category, department, authority, priority   (as before)
     confidence      float 0-1, or None on the rules fallback
     needs_review    True when confidence is below CONFIDENCE_THRESHOLD
+                    (or when wellbeing_risk fires — see below)
     corruption_flag / threat_flag   bool
+    wellbeing_risk  bool — see the _detect_wellbeing_risk() comment below
     source          "model" or "rules" — which path produced this result
 
 Honesty note: this model is trained on a *simulated* dataset (disclosed in
@@ -49,12 +51,40 @@ def _detect_audit_tier(text_lower):
     return any(p in text_lower for p in _AUDIT_TIER_PHRASES)
 
 
-def build_brief(category, priority, corruption_flag, threat_flag, audit_tier, needs_review):
+# Buried-distress signal — see the ideation doc's example of a suicidal-
+# ideation sentence inside an otherwise ordinary pension complaint. Same
+# deliberate design posture as _detect_audit_tier() above: a blunt,
+# high-precision-low-recall phrase check, not a clinical model. A false
+# negative just means the complaint rides the normal pipeline (the safe
+# default); a false positive means a human looks at a complaint that
+# turns out to be fine, which costs a few minutes of officer time and
+# nothing else. This is a ROUTING signal only — it holds the complaint
+# for a trained human to check in on. It never diagnoses, never talks
+# back to the citizen about it, and never gates or delays the underlying
+# civic issue from also being handled normally.
+_WELLBEING_RISK_PHRASES = (
+    "don't know how much longer", "do not know how much longer",
+    "can't keep doing this", "cannot keep doing this",
+    "can't go on", "cannot go on", "no point in living",
+    "don't want to be here anymore", "do not want to be here anymore",
+    "want to end my life", "want to end it all", "thinking of ending it",
+    "better off without me", "no reason to keep going",
+    "can't take this anymore", "cannot take this anymore",
+)
+
+
+def _detect_wellbeing_risk(text_lower):
+    return any(p in text_lower for p in _WELLBEING_RISK_PHRASES)
+
+
+def build_brief(category, priority, corruption_flag, threat_flag, audit_tier, needs_review, wellbeing_risk=False):
     """One-line, always-present scan summary for the officer queue (see
     officer.py) — the point is that an official triaging 10,000+ tickets in
     a shift should be able to make a keep/skip decision from this line
     alone, without opening the full complaint body every time."""
     tags = []
+    if wellbeing_risk:
+        tags.append("wellbeing check-in needed — route to a trained human, not the automated queue")
     if audit_tier:
         tags.append("AUDIT TIER — incident already occurred, review not routine fix")
     if threat_flag:
@@ -149,18 +179,23 @@ def _classify_with_model(title, body, bundle):
     corruption = bool(bundle["corruption_model"].predict(X)[0])
     threat = bool(bundle["threat_model"].predict(X)[0])
     audit_tier = _detect_audit_tier(text_lower)
+    wellbeing_risk = _detect_wellbeing_risk(text_lower)
 
-    needs_review = confidence < CONFIDENCE_THRESHOLD
+    needs_review = confidence < CONFIDENCE_THRESHOLD or wellbeing_risk
     display_category = "Uncategorized / Needs Human Review" if needs_review else category
     department = DEPARTMENT_OVERRIDES.get(category, category)
 
     severity = _priority_from_signals(confidence, corruption, threat)
     if audit_tier:
         severity = max(severity, 95)
+    if wellbeing_risk:
+        severity = max(severity, 90)
     urgency = _score_stated_urgency(title, body)
     priority = _blend_priority(severity, urgency)
     if audit_tier:
         priority = max(priority, 95)  # audit tier still forces the floor on the blended number
+    if wellbeing_risk:
+        priority = max(priority, 90)  # never lets this sit low in the queue, regardless of the topic's own severity
 
     return {
         "category": display_category,
@@ -175,6 +210,7 @@ def _classify_with_model(title, body, bundle):
         "corruption_flag": corruption,
         "threat_flag": threat,
         "audit_tier": audit_tier,
+        "wellbeing_risk": wellbeing_risk,
         "source": "model",
     }
 
@@ -227,6 +263,7 @@ def _classify_with_rules(title, body):
     corruption = any(k in text for k in ("bribe", "bribery", "payment demanded", "extort"))
     threat = any(k in text for k in ("threat", "attack", "weapon", "assault"))
     audit_tier = _detect_audit_tier(text)
+    wellbeing_risk = _detect_wellbeing_risk(text)
 
     if best is None:
         priority = 35 + random.randint(0, 14)
@@ -247,12 +284,16 @@ def _classify_with_rules(title, body):
         result["priority"] = max(result["priority"], 80)
     if audit_tier:
         result["priority"] = max(result["priority"], 95)
+    if wellbeing_risk:
+        result["priority"] = max(result["priority"], 90)
 
     severity = result["priority"]  # rules path: severity and the raw pre-blend priority are the same signal
     urgency = _score_stated_urgency(title, body)
     blended_priority = _blend_priority(severity, urgency)
     if audit_tier:
         blended_priority = max(blended_priority, 95)
+    if wellbeing_risk:
+        blended_priority = max(blended_priority, 90)
 
     result.update({
         "broad_category": broad_category(result["category"], corruption_flag=corruption),
@@ -260,10 +301,11 @@ def _classify_with_rules(title, body):
         "modeled_severity": severity,
         "stated_urgency": urgency,
         "confidence": None,
-        "needs_review": False,
+        "needs_review": bool(wellbeing_risk),
         "corruption_flag": corruption,
         "threat_flag": threat,
         "audit_tier": audit_tier,
+        "wellbeing_risk": wellbeing_risk,
         "source": "rules",
     })
     return result
@@ -282,5 +324,6 @@ def classify(title, body):
     result["ai_brief"] = build_brief(
         result["category"], result["priority"], result["corruption_flag"],
         result["threat_flag"], result["audit_tier"], result["needs_review"],
+        result.get("wellbeing_risk", False),
     )
     return result

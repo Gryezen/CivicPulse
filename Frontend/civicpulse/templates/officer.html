@@ -18,7 +18,7 @@
   .off-head p{color:var(--text-mid); margin-top:8px; max-width:620px;}
 
   /* ---------- STAT STRIP ---------- */
-  .stat-row{display:grid; grid-template-columns:repeat(6, 1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:2px; overflow:hidden; margin-bottom:28px;}
+  .stat-row{display:grid; grid-template-columns:repeat(7, 1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:2px; overflow:hidden; margin-bottom:28px;}
   @media (max-width: 1000px){ .stat-row{grid-template-columns:repeat(3, 1fr);} }
   @media (max-width: 560px){ .stat-row{grid-template-columns:repeat(2, 1fr);} }
   .stat-cell{background:var(--surface); padding:18px 16px;}
@@ -29,6 +29,7 @@
   .stat-cell.corruption .n{color:var(--navy);}
   .stat-cell.threat .n{color:var(--red);}
   .stat-cell.audit .n{color:var(--red-dim);}
+  .stat-cell.wellbeing .n{color:var(--saffron-dim, var(--marigold));}
   .stat-cell.auto .n{color:var(--green);}
 
   /* ---------- BROAD-CATEGORY BAR ---------- */
@@ -102,6 +103,7 @@
   .off-tag.corruption{color:var(--navy); border-color:var(--navy); font-weight:700;}
   .off-tag.threat{color:var(--red); border-color:var(--red); font-weight:700;}
   .off-tag.audit{color:var(--white); background:var(--red-dim); border-color:var(--red-dim); font-weight:700;}
+  .off-tag.wellbeing{color:var(--white); background:var(--marigold); border-color:var(--marigold); font-weight:700;}
   .off-tag.auto{color:var(--green); border-color:var(--green); font-weight:700;}
   .off-right{font-family:var(--mono); font-size:0.74rem; color:var(--text-low); white-space:nowrap; padding-top:3px;}
   .off-detail{padding:0 16px 18px 46px; border-top:1px solid var(--hairline);}
@@ -188,6 +190,7 @@
       <div class="stat-cell corruption"><div class="n" id="statCorruption">–</div><div class="l">Vigilance channel</div></div>
       <div class="stat-cell threat"><div class="n" id="statThreat">–</div><div class="l">Safety escalations</div></div>
       <div class="stat-cell audit"><div class="n" id="statAudit">–</div><div class="l">Audit tier</div></div>
+      <div class="stat-cell wellbeing"><div class="n" id="statWellbeing">–</div><div class="l">Wellbeing check-in</div></div>
     </div>
 
     <div class="stat-row reveal" style="grid-template-columns:1fr;">
@@ -241,6 +244,7 @@
   <div class="wrap meta-inner">
     <span class="meta-brand"><img src="img/chakra.svg" alt="" aria-hidden="true" class="chakra-mark">CIVICPULSE // PS97 // TEAM GRYEZEN</span>
     <a href="https://github.com/orgs/Gryezen/repositories" target="_blank" rel="noopener">github.com/orgs/Gryezen</a>
+    <a href="privacy">Data handling</a>
     <span>SIH 2026 INTERNALS · VIT CHENNAI</span>
   </div>
 </footer>
@@ -270,6 +274,7 @@
       document.getElementById('statCorruption').textContent = s.corruptionFlag;
       document.getElementById('statThreat').textContent = s.threatFlag;
       document.getElementById('statAudit').textContent = s.auditTier;
+      document.getElementById('statWellbeing').textContent = s.wellbeingRisk;
       document.getElementById('statAutoPct').textContent = Math.round((s.autoResolvedShareOfHandled || 0) * 100) + '%';
       document.getElementById('statAutoCount').textContent = s.autoResolved;
 
@@ -376,6 +381,7 @@
       const band = priorityBand(d.priority);
       const tags = [
         d.auditTier ? '<span class="off-tag audit">⛔ Audit tier</span>' : '',
+        d.wellbeingRisk ? '<span class="off-tag wellbeing">🤝 Wellbeing check-in</span>' : '',
         d.threatFlag ? '<span class="off-tag threat">🚨 Safety</span>' : '',
         d.corruptionFlag ? '<span class="off-tag corruption">⚖️ Vigilance</span>' : '',
         d.needsReview ? '<span class="off-tag review">🕵️ Needs review</span>' : '',
@@ -383,6 +389,7 @@
         d.corroborationCount > 1 ? `<span class="off-tag corroborated">👥 Corroborated ×${d.corroborationCount}</span>` : '',
         d.isRepeatFiling ? '<span class="off-tag repeat">🔁 Repeat filing</span>' : '',
         d.suspectedCoordinated ? '<span class="off-tag threat">🤖⚠️ Suspected coordinated</span>' : '',
+        d.suspectedTargeting ? '<span class="off-tag threat">🎯⚠️ Suspected targeting pattern</span>' : '',
         d.unverifiedAllegation ? '<span class="off-tag review">❓ Unverified allegation</span>' : '',
         d.disputeCount > 0 ? `<span class="off-tag repeat">↩️ Disputed ×${d.disputeCount}</span>` : '',
         `<span class="off-tag">${d.broadCategory}</span>`,

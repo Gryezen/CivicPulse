@@ -27,6 +27,7 @@ from complaints import complaints_bp
 from officer import officer_bp
 from ivr import ivr_bp
 from admin import admin_bp
+from cpgrams_integration import cpgrams_bp
 from policy_engine import PolicyRecommender, find_policy, load_policies, seed_policies_if_empty
 
 load_dotenv()
@@ -59,6 +60,7 @@ app.register_blueprint(complaints_bp)
 app.register_blueprint(officer_bp)
 app.register_blueprint(ivr_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(cpgrams_bp)
 
 
 @login_manager.user_loader
@@ -130,6 +132,8 @@ def _ensure_new_columns():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) NOT NULL DEFAULT 'none'",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS id_document_path VARCHAR(300)",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_requested_at TIMESTAMP",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS wellbeing_risk BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS suspected_targeting BOOLEAN NOT NULL DEFAULT FALSE",
     ]
     for stmt in statements:
         try:
@@ -144,7 +148,7 @@ with app.app_context():
     from models import User, Complaint, ClassificationLog, Policy  # noqa: F401  (registers models with SQLAlchemy)
     from seed_data import (
         DEMO_ACCOUNT, DEMO_OFFICER_ACCOUNT, DEMO_ADMIN_ACCOUNT, DEMO_PENDING_OFFICER_ACCOUNT,
-        DEMO_QUEUE_COMPLAINTS, dataset_sample_complaints,
+        CPGRAMS_BRIDGE_ACCOUNT, DEMO_QUEUE_COMPLAINTS, dataset_sample_complaints,
     )
 
     db.create_all()
@@ -171,6 +175,17 @@ with app.app_context():
         pending_user = User(**DEMO_PENDING_OFFICER_ACCOUNT)
         pending_user.set_password(os.environ.get("DEMO_OFFICER_PASSWORD", "demo-officer-not-for-login"))
         db.session.add(pending_user)
+        db.session.commit()
+
+    # System account complaints ingested through the mock CPGRAMS-shaped
+    # bridge are filed under (see cpgrams_integration.py) — never meant to
+    # be logged into interactively, so its password is just a random
+    # unusable string rather than anything env-configurable.
+    if User.query.filter_by(email=CPGRAMS_BRIDGE_ACCOUNT["email"]).first() is None:
+        import secrets
+        bridge_user = User(**CPGRAMS_BRIDGE_ACCOUNT)
+        bridge_user.set_password(secrets.token_hex(32))
+        db.session.add(bridge_user)
         db.session.commit()
 
     # Seed a handful of demo complaints (under a system "Demo Citizen" account)
@@ -232,6 +247,7 @@ PAGES = {
     "login": "login.html",
     "complaint": "complaint.html",
     "account": "account.html",
+    "privacy": "privacy.html",
 }
 
 # Pages that require a logged-in session. Login-gated at the route level

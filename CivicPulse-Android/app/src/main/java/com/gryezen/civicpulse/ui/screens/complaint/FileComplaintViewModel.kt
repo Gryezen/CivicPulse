@@ -33,7 +33,8 @@ class FileComplaintViewModel(
         authorityLevel: String,
         language: String,
         body: String,
-        proofFiles: List<File>
+        proofFiles: List<File>,
+        beforePhoto: File? = null
     ) {
         if (title.isBlank() || dateFrom.isBlank() || dateTo.isBlank() || body.isBlank()) {
             state = state.copy(error = "Fill in the title, dates, and description before submitting.")
@@ -41,6 +42,13 @@ class FileComplaintViewModel(
         }
         state = state.copy(submitting = true, error = null)
         viewModelScope.launch {
+            // uploads.py only accepts image data; encoding is blocking file
+            // I/O, so it's done off the main thread same as the picker.
+            val beforePhotoDataUrl = beforePhoto?.let {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.gryezen.civicpulse.util.encodeFileAsImageDataUrl(it)
+                }
+            }
             val newComplaint = NewComplaint(
                 title = title.trim(),
                 dateFrom = dateFrom,
@@ -48,7 +56,8 @@ class FileComplaintViewModel(
                 authorityLevel = authorityLevel,
                 language = language,
                 body = body.trim(),
-                proofFiles = proofFiles
+                proofFiles = proofFiles,
+                beforePhotoDataUrl = beforePhotoDataUrl
             )
             // ComplaintRepository.fileComplaint() already falls back to the
             // local classifier and persists the result if the real endpoint

@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.gryezen.civicpulse.CivicPulseApp
 import com.gryezen.civicpulse.ui.screens.account.AccountViewModel
+import com.gryezen.civicpulse.ui.screens.admin.AdminViewModel
 import com.gryezen.civicpulse.ui.screens.auth.AuthViewModel
 import com.gryezen.civicpulse.ui.screens.complaint.FileComplaintViewModel
 import com.gryezen.civicpulse.ui.screens.dashboard.DashboardViewModel
+import com.gryezen.civicpulse.ui.screens.officer.OfficerViewModel
 import com.gryezen.civicpulse.ui.screens.policy.PolicyViewModel
 import com.gryezen.civicpulse.ui.screens.track.TrackViewModel
 
@@ -22,6 +24,8 @@ class CivicPulseViewModelFactory(private val app: CivicPulseApp) : ViewModelProv
             TrackViewModel::class.java -> TrackViewModel(app.complaintRepository) as T
             AccountViewModel::class.java -> AccountViewModel(app.authRepository, app.preferencesManager) as T
             PolicyViewModel::class.java -> PolicyViewModel(app.policyRepository) as T
+            OfficerViewModel::class.java -> OfficerViewModel(app.officerRepository) as T
+            AdminViewModel::class.java -> AdminViewModel(app.adminRepository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }

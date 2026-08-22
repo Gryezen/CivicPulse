@@ -71,6 +71,7 @@ def summary():
     corruption = Complaint.query.filter_by(corruption_flag=True).count()
     threat = Complaint.query.filter_by(threat_flag=True).count()
     audit_tier = Complaint.query.filter_by(audit_tier=True).count()
+    wellbeing_risk = Complaint.query.filter_by(wellbeing_risk=True).count()
     auto_resolved = Complaint.query.filter_by(auto_resolved=True).count()
     unresolved = total - by_stage["resolved"]
 
@@ -89,6 +90,7 @@ def summary():
         "corruptionFlag": corruption,
         "threatFlag": threat,
         "auditTier": audit_tier,
+        "wellbeingRisk": wellbeing_risk,
         "autoResolved": auto_resolved,
         # what the agent handled without a human, out of everything that's
         # not still sitting in "received" — a rough "load actually taken off
@@ -182,6 +184,7 @@ def queue():
             (Complaint.corruption_flag.is_(True))
             | (Complaint.threat_flag.is_(True))
             | (Complaint.audit_tier.is_(True))
+            | (Complaint.wellbeing_risk.is_(True))
             | (Complaint.needs_review.is_(True))
         )
 
@@ -189,6 +192,7 @@ def queue():
 
     def triage_key(c):
         return (
+            0 if c.wellbeing_risk else 1,
             0 if c.audit_tier else 1,
             0 if c.threat_flag else 1,
             0 if c.corruption_flag else 1,
@@ -318,6 +322,9 @@ def sync_policies():
         return _err(f"Sync failed: {e}", 502)
 
     return jsonify(result)
+
+
+@officer_bp.get("/api/officer/complaints/<string:complaint_id>/trail")
 @_official_required
 def audit_trail(complaint_id):
     """Full explainability trail for one complaint — every classification
