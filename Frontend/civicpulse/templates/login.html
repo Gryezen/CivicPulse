@@ -280,6 +280,13 @@
 
 <script src="main.js"></script>
 <script>
+  // Already logged in (e.g. followed a stray "Log in" link, or came back
+  // via browser history) — bounce straight to where they'd land after a
+  // fresh login instead of showing the login form again.
+  apiGet('/api/user/me').then(user=>{
+    window.location.href = nextUrl(user);
+  }).catch(()=>{ /* not logged in — show the form normally */ });
+
   const tabLogin = document.getElementById('tabLogin');
   const tabRegister = document.getElementById('tabRegister');
   const loginForm = document.getElementById('loginForm');
@@ -382,12 +389,16 @@
     return valid;
   }
 
-  function nextUrl(role){
+  function nextUrl(user){
     const params = new URLSearchParams(window.location.search);
     const next = params.get('next');
     // only ever follow a same-site relative path — never an absolute/external URL
     if(next && next.startsWith('/')) return next;
-    return role === 'official' ? 'officer.html' : 'dashboard.html';
+    // isOfficial requires role AND is_verified (see models.py) — an
+    // official account still in pending_review isn't isOfficial yet, and
+    // sending it to officer.html would just 403. Land it on the regular
+    // dashboard instead, same as a citizen, until it's verified.
+    return (user && user.isOfficial) ? 'officer.html' : 'dashboard.html';
   }
 
   function setBusy(form, busy){
@@ -407,7 +418,7 @@
       document.getElementById('li-pass').value
     ).then((user)=>{
       showToast('Logged in — redirecting…');
-      setTimeout(()=> window.location.href = nextUrl(user && user.role), 700);
+      setTimeout(()=> window.location.href = nextUrl(user), 700);
     }).catch(err=>{
       setBusy(loginForm, false);
       showToast(err.message);
@@ -450,7 +461,7 @@
         return;
       }
       showToast('Account created — redirecting…');
-      setTimeout(()=> window.location.href = nextUrl(user && user.role), 700);
+      setTimeout(()=> window.location.href = nextUrl(user), 700);
     }).catch(err=>{
       setBusy(registerForm, false);
       showToast(err.message);

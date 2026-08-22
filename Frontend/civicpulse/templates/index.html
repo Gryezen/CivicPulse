@@ -143,13 +143,21 @@
       <li><a href="#pillars">Why it's fast</a></li>
       <li><a href="#how">How it works</a></li>
       <li><a href="track.html">Complaints &amp; Policies</a></li>
-      <li><a href="login.html">Log in</a></li>
+      <li class="auth-only" style="display:none;"><a href="dashboard.html">Dashboard</a></li>
+      <li class="auth-only" style="display:none;"><a href="complaint.html">File complaint</a></li>
+      <li class="officer-only" style="display:none;"><a href="officer.html">Officer dashboard</a></li>
+      <li class="admin-only" style="display:none;"><a href="admin.html">Admin review</a></li>
+      <li class="guest-only"><a href="login.html">Log in</a></li>
     </ul>
     <div class="nav-right">
       <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinksList">
         <span></span><span></span><span></span>
       </button>
-      <a class="nav-cta" href="login.html">File a complaint →</a>
+      <a class="nav-cta guest-only" href="login.html">File a complaint →</a>
+      <a href="account.html" class="nav-user auth-only" style="display:none;">
+        <div class="nav-avatar">A</div>
+        <span>Anon Citizen</span>
+      </a>
     </div>
   </div>
 </header>
@@ -165,7 +173,8 @@
       <p class="subhead">CivicPulse triages, de-duplicates, and routes citizen grievances the moment they're filed — in the citizen's own language — so nothing waits in a queue that nobody's watching.</p>
       <div class="hero-ctas">
         <a href="#how" class="btn btn-primary">See how it works</a>
-        <a href="login.html" class="btn btn-ghost">File a complaint</a>
+        <a href="login.html" class="btn btn-ghost guest-only">File a complaint</a>
+        <a href="complaint.html" class="btn btn-ghost auth-only" style="display:none;">File a complaint</a>
       </div>
     </div>
 
@@ -286,7 +295,8 @@
       <h2>Let's give every<br><span class="accent">complaint a pulse.</span></h2>
       <p>Built for Smart India Hackathon, Problem Statement 97 — Citizen Grievance Classification using AI.</p>
       <div class="footer-ctas">
-        <a href="login.html" class="btn btn-primary">File a complaint</a>
+        <a href="login.html" class="btn btn-primary guest-only">File a complaint</a>
+        <a href="complaint.html" class="btn btn-primary auth-only" style="display:none;">File a complaint</a>
         <a href="#top" class="btn btn-ghost">Back to top</a>
       </div>
     </div>

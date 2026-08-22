@@ -71,6 +71,20 @@ function paintNavUser(account){
   document.querySelectorAll('.admin-only').forEach(el=>{
     el.style.display = account.isAdmin ? '' : 'none';
   });
+  // .guest-only / .auth-only — a generic logged-in/logged-out toggle for
+  // pages that show different CTAs to each (index.html's marketing nav +
+  // hero/footer CTAs). A real account always has an email; the empty-
+  // string default in CP_DEFAULT_ACCOUNT is what marks "no one logged
+  // in" here. No-ops harmlessly on any page that doesn't use these
+  // classes (dashboard.html etc. always show the app-shell nav regardless
+  // of login state, so they don't need this toggle).
+  const loggedIn = !!(account && account.email);
+  document.querySelectorAll('.guest-only').forEach(el=>{
+    el.style.display = loggedIn ? 'none' : '';
+  });
+  document.querySelectorAll('.auth-only').forEach(el=>{
+    el.style.display = loggedIn ? '' : 'none';
+  });
 }
 
 // Paints from cache immediately, then refreshes from the server (protected
@@ -81,7 +95,15 @@ function initNavUser(){
   paintNavUser(getAccount());
   apiGet('/api/user/me').then(data=>{
     paintNavUser(cacheAccount(data));
-  }).catch(()=>{ /* not logged in on this page — fine */ });
+  }).catch(()=>{
+    // Not logged in on this page — OR a previously-cached account is now
+    // stale (session expired / logged out in another tab). Clear the
+    // cache and repaint as logged-out rather than leaving a stale cached
+    // name/officer-link showing on a page where the server no longer
+    // recognises this session.
+    clearAccount();
+    paintNavUser(getAccount());
+  });
 }
 
 // ---------------------------------------------------------------------
