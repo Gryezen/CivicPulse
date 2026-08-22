@@ -18,7 +18,7 @@
   .off-head p{color:var(--text-mid); margin-top:8px; max-width:620px;}
 
   /* ---------- STAT STRIP ---------- */
-  .stat-row{display:grid; grid-template-columns:repeat(7, 1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:2px; overflow:hidden; margin-bottom:28px;}
+  .stat-row{display:grid; grid-template-columns:repeat(9, 1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:2px; overflow:hidden; margin-bottom:28px;}
   @media (max-width: 1000px){ .stat-row{grid-template-columns:repeat(3, 1fr);} }
   @media (max-width: 560px){ .stat-row{grid-template-columns:repeat(2, 1fr);} }
   .stat-cell{background:var(--surface); padding:18px 16px;}
@@ -30,6 +30,8 @@
   .stat-cell.threat .n{color:var(--red);}
   .stat-cell.audit .n{color:var(--red-dim);}
   .stat-cell.wellbeing .n{color:var(--saffron-dim, var(--marigold));}
+  .stat-cell.targeting .n{color:var(--red-dim);}
+  .stat-cell.coordinated .n{color:var(--red-dim);}
   .stat-cell.auto .n{color:var(--green);}
 
   /* ---------- BROAD-CATEGORY BAR ---------- */
@@ -191,6 +193,8 @@
       <div class="stat-cell threat"><div class="n" id="statThreat">–</div><div class="l">Safety escalations</div></div>
       <div class="stat-cell audit"><div class="n" id="statAudit">–</div><div class="l">Audit tier</div></div>
       <div class="stat-cell wellbeing"><div class="n" id="statWellbeing">–</div><div class="l">Wellbeing check-in</div></div>
+      <div class="stat-cell targeting"><div class="n" id="statTargeting">–</div><div class="l">Suspected targeting</div></div>
+      <div class="stat-cell coordinated"><div class="n" id="statCoordinated">–</div><div class="l">Suspected coordinated</div></div>
     </div>
 
     <div class="stat-row reveal" style="grid-template-columns:1fr;">
@@ -275,6 +279,8 @@
       document.getElementById('statThreat').textContent = s.threatFlag;
       document.getElementById('statAudit').textContent = s.auditTier;
       document.getElementById('statWellbeing').textContent = s.wellbeingRisk;
+      document.getElementById('statTargeting').textContent = s.suspectedTargeting;
+      document.getElementById('statCoordinated').textContent = s.suspectedCoordinated;
       document.getElementById('statAutoPct').textContent = Math.round((s.autoResolvedShareOfHandled || 0) * 100) + '%';
       document.getElementById('statAutoCount').textContent = s.autoResolved;
 

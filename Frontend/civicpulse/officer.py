@@ -72,6 +72,8 @@ def summary():
     threat = Complaint.query.filter_by(threat_flag=True).count()
     audit_tier = Complaint.query.filter_by(audit_tier=True).count()
     wellbeing_risk = Complaint.query.filter_by(wellbeing_risk=True).count()
+    suspected_targeting = Complaint.query.filter_by(suspected_targeting=True).count()
+    suspected_coordinated = Complaint.query.filter_by(suspected_coordinated=True).count()
     auto_resolved = Complaint.query.filter_by(auto_resolved=True).count()
     unresolved = total - by_stage["resolved"]
 
@@ -91,6 +93,8 @@ def summary():
         "threatFlag": threat,
         "auditTier": audit_tier,
         "wellbeingRisk": wellbeing_risk,
+        "suspectedTargeting": suspected_targeting,
+        "suspectedCoordinated": suspected_coordinated,
         "autoResolved": auto_resolved,
         # what the agent handled without a human, out of everything that's
         # not still sitting in "received" — a rough "load actually taken off
@@ -185,6 +189,8 @@ def queue():
             | (Complaint.threat_flag.is_(True))
             | (Complaint.audit_tier.is_(True))
             | (Complaint.wellbeing_risk.is_(True))
+            | (Complaint.suspected_targeting.is_(True))
+            | (Complaint.suspected_coordinated.is_(True))
             | (Complaint.needs_review.is_(True))
         )
 
@@ -196,6 +202,8 @@ def queue():
             0 if c.audit_tier else 1,
             0 if c.threat_flag else 1,
             0 if c.corruption_flag else 1,
+            0 if c.suspected_targeting else 1,
+            0 if c.suspected_coordinated else 1,
             0 if c.needs_review else 1,
             -c.priority,
             -c.filed_at.timestamp() if c.filed_at else 0,
